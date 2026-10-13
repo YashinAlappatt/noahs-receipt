@@ -44,6 +44,16 @@
     font-weight: normal;
     color: var(--green);
   }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .head h1 { margin: 0; }
+  .insights {
+    padding: 7px 14px;
+    border: 1px solid var(--green);
+    border-radius: 6px;
+    color: var(--green);
+    font-size: 14px;
+    text-decoration: none;
+  }
   .wrap > * { min-width: 0; }
   .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
   .full { grid-column: 1 / -1; }
@@ -143,7 +153,10 @@
 <body>
 <div class="wrap">
   <div class="panel">
-    <h1>Booking Receipt</h1>
+    <div class="head">
+      <h1>Booking Receipt</h1>
+      <a class="insights" href="insights.html" target="_blank" rel="noopener">Insights</a>
+    </div>
     <div class="grid">
       <div class="full"><label for="name">Name</label><input id="name" autocomplete="off"></div>
       <div><label for="place">Place</label><input id="place" autocomplete="off"></div>

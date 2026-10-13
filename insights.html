@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insights - Noah's Green Square</title>
+<style>
+  :root {
+    color-scheme: light;
+    --green: #1f3d2b;
+    --gold: #b08d57;
+    --bg: #eef0ec;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --line: #dcd6c6;
+    --series-1: #2a78d6;   /* received / single series */
+    --series-2: #eb6834;   /* still to receive */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+  }
+  header { background: var(--green); color: #fbf8f1; padding: 18px 16px; }
+  header .in, main { max-width: 1080px; margin: 0 auto; }
+  header .in { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: normal; font-size: 22px; letter-spacing: 2px; }
+  header a { color: #e7cf9a; font-size: 14px; }
+  main { padding: 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .bar .spacer { flex: 1; }
+  .status { font-size: 12px; color: var(--ink2); }
+  button, select {
+    font: inherit;
+    font-size: 14px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--green);
+    background: #fff;
+    color: var(--green);
+    cursor: pointer;
+  }
+  button.on { background: var(--green); color: #fff; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile, .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .tile { padding: 14px; }
+  .tile .label { font-size: 12px; color: var(--ink2); }
+  .tile .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .card { padding: 16px; margin-top: 14px; min-width: 0; }
+  .card h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .card .note { margin: 2px 0 10px; font-size: 12px; color: var(--ink2); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .two .card { margin-top: 14px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; gap: 0; } }
+  .highlights { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .highlights li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--grid); padding-bottom: 8px; }
+  .highlights li:last-child { border-bottom: 0; padding-bottom: 0; }
+  .highlights span { color: var(--ink2); }
+  .highlights b { font-weight: 600; text-align: right; }
+  .chart { position: relative; }
+  .chart svg { display: block; }
+  .chart .hit { cursor: pointer; }
+  .tick, .xl { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .peak { font-size: 12px; fill: var(--ink); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink2); margin-bottom: 6px; }
+  .legend i, .tip i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .tip {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
+    min-width: 150px;
+    max-width: 240px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--ink2);
+  }
+  .tip b { display: block; color: var(--ink); margin-bottom: 4px; }
+  .tip div { display: flex; justify-content: space-between; gap: 12px; }
+  .tip div span { white-space: nowrap; }
+  .tip div span:last-child { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .hrow { display: grid; grid-template-columns: minmax(90px, 38%) 1fr; gap: 10px; align-items: center; padding: 5px 0; cursor: default; }
+  .hrow .hl { font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+  .hrow .ht { display: flex; align-items: center; gap: 8px; }
+  .hrow .hb { height: 16px; min-width: 2px; background: var(--series-1); border-radius: 0 4px 4px 0; }
+  .hrow .hv { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { font-weight: 600; color: var(--ink2); font-size: 12px; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td.name { white-space: normal; min-width: 140px; }
+  .empty { padding: 30px 10px; text-align: center; color: var(--ink2); }
+  .link { border: 0; padding: 0; background: none; color: var(--green); text-decoration: underline; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <h1>NOAH'S GREEN SQUARE · INSIGHTS</h1>
+    <a href="./">Back to receipts</a>
+  </div>
+</header>
+<main>
+  <div class="bar">
+    <button data-view="all" class="on">All events</button>
+    <button data-view="finished">Finished</button>
+    <button data-view="upcoming">Upcoming</button>
+    <select id="year" aria-label="Year"></select>
+    <span class="spacer"></span>
+    <span class="status" id="status"></span>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <div id="empty" class="card empty" hidden></div>
+
+  <div id="content">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="two">
+      <div class="card">
+        <h2>Highlights</h2>
+        <p class="note">For the events selected above.</p>
+        <ul class="highlights" id="highlights"></ul>
+      </div>
+      <div class="card">
+        <h2>Bookings by programme</h2>
+        <p class="note">Number of events of each kind. Point at a bar for its income.</p>
+        <div class="chart" id="progChart"><div class="plot"></div><div class="tip" hidden></div></div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="card">
+        <h2>Bookings by month</h2>
+        <p class="note">Number of events held in each month. Tap a month to list its events below.</p>
+        <div class="chart" id="countChart"><div class="plot"></div><div class="tip" hidden></div></div>
+      </div>
+      <div class="card">
+        <h2>Hall income by month</h2>
+        <p class="note">Rent after discount, by the month of the event. Security deposits are not counted.</p>
+        <div class="legend">
+          <span><i style="background:var(--series-1)"></i>Received</span>
+          <span><i style="background:var(--series-2)"></i>Still to receive</span>
+        </div>
+        <div class="chart" id="moneyChart"><div class="plot"></div><div class="tip" hidden></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="tableTitle">Events</h2>
+      <p class="note" id="tableNote"></p>
+      <div class="tablewrap"><table id="table"></table></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const BOOKINGS_KEY = 'ngs-receipt-bookings';
+const SETTINGS_KEY = 'ngs-receipt-settings';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Event names are typed freely, so similar ones are counted as one programme
+const PROGRAMMES = [
+  [/birthday/, 'Birthday'], [/baptism/, 'Baptism'], [/engagement/, 'Engagement'], [/onam/, 'Onam Celebration'],
+  [/7th day/, '7th Day of Demise'], [/anniversary/, 'Death Anniversary'], [/communion/, 'Holy Communion'],
+  [/wedding|reception|marriage/, 'Wedding'], [/meeting/, 'Meeting'], [/housewarming/, 'Housewarming'],
+];
+
+const $ = id => document.getElementById(id);
+let all = [], view = 'all', year = 'all', picked = null;
+
+function load(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function num(v) {
+  return Math.max(0, parseFloat(v) || 0);
+}
+function rupees(n) {
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function monthName(key, long) {
+  return MONTHS[+key.slice(5, 7) - 1] + (long ? ' ' + key.slice(0, 4) : '');
+}
+function fmtDate(iso) {
+  return iso.slice(8, 10) + ' ' + MONTHS[+iso.slice(5, 7) - 1] + ' ' + iso.slice(0, 4);
+}
+function programme(event) {
+  const t = event.toLowerCase();
+  const hit = PROGRAMMES.find(p => p[0].test(t));
+  return hit ? hit[1] : (event.trim() || 'Not stated');
+}
+
+// Money per booking. Hall income is rent after discount; anything paid beyond that is the
+// refundable security deposit, which is held until it is ticked as refunded.
+function enrich(b) {
+  const rent = num(b.rent), discount = Math.min(num(b.discount), rent), deposit = num(b.deposit);
+  const net = rent - discount, paid = num(b.advance) + num(b.balpaid);
+  const depositIn = Math.min(Math.max(paid - net, 0), deposit);
+  return Object.assign({}, b, {
+    net: net,
+    discountGiven: discount,
+    received: Math.min(paid, net),
+    due: Math.max(net - paid, 0),
+    securityHeld: b.secrefunded === 'yes' ? 0 : depositIn,
+    finished: b.date < todayIso(),
+    month: b.date.slice(0, 7),
+    programme: programme(b.event || ''),
+  });
+}
+
+function selected() {
+  return all.filter(b => (view === 'all' || (view === 'finished') === b.finished) &&
+    (year === 'all' || b.date.slice(0, 4) === year));
+}
+function sum(list, key) {
+  return list.reduce((a, b) => a + b[key], 0);
+}
+function best(map, value) {
+  let top = -1, names = [];
+  Object.keys(map).forEach(k => {
+    const v = value(map[k]);
+    if (v > top) { top = v; names = [k]; } else if (v === top) names.push(k);
+  });
+  return { value: top, names: names };
+}
+function group(list, key) {
+  const out = {};
+  list.forEach(b => { (out[b[key]] = out[b[key]] || []).push(b); });
+  return out;
+}
+
+function niceStep(raw, whole) {
+  if (whole) return Math.max(1, Math.ceil(raw));
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  return [1, 2, 2.5, 5, 10].map(m => m * pow).find(s => s >= raw);
+}
+
+function showTip(chart, html, x, y) {
+  const tip = chart.querySelector('.tip');
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const w = tip.offsetWidth, cw = chart.clientWidth;
+  tip.style.left = Math.max(0, Math.min(x + 12, cw - w)) + 'px';
+  tip.style.top = Math.max(0, y - tip.offsetHeight - 10) + 'px';
+}
+function hideTip(chart) {
+  chart.querySelector('.tip').hidden = true;
+}
+
+// Column chart, one column per month; `series` stack from the baseline with a 2px gap
+function columns(chart, months, series, opts) {
+  const plot = chart.querySelector('.plot');
+  const W = Math.max(plot.clientWidth, 260), H = 240, ml = opts.left, mr = 8, mt = 22, mb = 36;
+  const totals = months.map((m, i) => series.reduce((a, s) => a + s.values[i], 0));
+  const step = niceStep(Math.max(1, Math.max.apply(null, totals)) / 4, opts.whole);
+  const max = step * Math.max(1, Math.ceil(Math.max.apply(null, totals) / step));
+  const band = (W - ml - mr) / months.length, bw = Math.min(24, Math.max(6, band * 0.6));
+  const y = v => mt + (H - mt - mb) * (1 - v / max);
+  const every = Math.ceil(34 / band);
+  const peak = totals.indexOf(Math.max.apply(null, totals));
+  let yearShown = '';
+  let s = '<svg width="' + W + '" height="' + H + '" role="img" aria-label="' + esc(opts.label) + '">';
+  for (let t = 0; t <= max + step / 2; t += step) {
+    s += '<line x1="' + ml + '" x2="' + (W - mr) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="' +
+      (t ? 'var(--grid)' : 'var(--axis)') + '"/>' +
+      '<text class="tick" x="' + (ml - 6) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + opts.fmt(t) + '</text>';
+  }
+  months.forEach((m, i) => {
+    const cx = ml + band * (i + 0.5), x = cx - bw / 2;
+    const live = series.filter(sr => sr.values[i] > 0);
+    let base = 0;
+    s += '<g' + (picked && picked !== m ? ' opacity="0.35"' : '') + '>';
+    live.forEach((sr, k) => {
+      const y0 = y(base), y1 = y(base + sr.values[i]);
+      base += sr.values[i];
+      const h = Math.max(y0 - y1 - (k ? 2 : 0), 1), r = Math.min(4, h, bw / 2);
+      s += k === live.length - 1
+        ? '<path fill="' + sr.color + '" d="M' + x + ',' + (y1 + h) + 'V' + (y1 + r) + 'Q' + x + ',' + y1 + ' ' + (x + r) + ',' + y1 +
+          'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + y1 + ' ' + (x + bw) + ',' + (y1 + r) + 'V' + (y1 + h) + 'Z"/>'
+        : '<rect fill="' + sr.color + '" x="' + x + '" y="' + y1 + '" width="' + bw + '" height="' + h + '"/>';
+    });
+    s += '</g>';
+    if (i === peak && totals[i] > 0) {
+      s += '<text class="peak" x="' + cx + '" y="' + (y(totals[i]) - 6) + '" text-anchor="middle">' + opts.fmt(totals[i]) + '</text>';
+    }
+    if (i % every === 0) {
+      s += '<text class="xl" x="' + cx + '" y="' + (H - mb + 16) + '" text-anchor="middle">' + monthName(m) + '</text>';
+      if (m.slice(0, 4) !== yearShown) {
+        yearShown = m.slice(0, 4);
+        s += '<text class="xl" x="' + cx + '" y="' + (H - mb + 31) + '" text-anchor="middle">' + m.slice(0, 4) + '</text>';
+      }
+    }
+    s += '<rect class="hit" data-i="' + i + '" x="' + (ml + band * i) + '" y="' + mt + '" width="' + band +
+      '" height="' + (H - mt - mb) + '" fill="transparent"/>';
+  });
+  plot.innerHTML = s + '</svg>';
+  plot.querySelectorAll('.hit').forEach(hit => {
+    const i = +hit.dataset.i;
+    hit.addEventListener('mousemove', e => {
+      const box = chart.getBoundingClientRect();
+      showTip(chart, opts.tip(months[i], i), e.clientX - box.left, e.clientY - box.top);
+    });
+    hit.addEventListener('mouseleave', () => hideTip(chart));
+    hit.addEventListener('click', () => { picked = picked === months[i] ? null : months[i]; render(); });
+  });
+}
+
+function renderTiles(list) {
+  const done = list.filter(b => b.finished).length;
+  const tiles = [
+    ['Bookings', String(list.length), done + ' finished · ' + (list.length - done) + ' upcoming'],
+    ['Projected hall income', rupees(sum(list, 'net')), 'Rent after discount'],
+    ['Received so far', rupees(sum(list, 'received')), 'Advance and balance payments'],
+    ['Still to receive', rupees(sum(list, 'due')), 'Rent not yet paid'],
+    ['Security held', rupees(sum(list, 'securityHeld')), 'Collected, not yet refunded'],
+    ['Discounts given', rupees(sum(list, 'discountGiven')), 'Already taken off the income'],
+  ];
+  $('tiles').innerHTML = tiles.map(t => '<div class="tile"><div class="label">' + t[0] + '</div><div class="value">' +
+    t[1] + '</div><div class="sub">' + t[2] + '</div></div>').join('');
+}
+
+function renderHighlights(list, byMonth, byProgramme) {
+  const names = r => r.names.slice(0, 3).join(', ') + (r.names.length > 3 ? ' and ' + (r.names.length - 3) + ' more' : '');
+  const busiest = best(byMonth, g => g.length);
+  const richest = best(byMonth, g => sum(g, 'net'));
+  const popular = best(byProgramme, g => g.length);
+  const earner = best(byProgramme, g => sum(g, 'net'));
+  busiest.names = busiest.names.map(m => monthName(m, true));
+  richest.names = richest.names.map(m => monthName(m, true));
+  const rows = [
+    ['Month with the most bookings', names(busiest) + ' (' + busiest.value + ')'],
+    ['Month with the highest income', names(richest) + ' (' + rupees(richest.value) + ')'],
+    ['Most booked programme', names(popular) + ' (' + popular.value + ')'],
+    ['Programme earning the most', names(earner) + ' (' + rupees(earner.value) + ')'],
+    ['Average rent per event', rupees(sum(list, 'net') / list.length)],
+  ];
+  $('highlights').innerHTML = rows.map(r => '<li><span>' + r[0] + '</span><b>' + esc(r[1]) + '</b></li>').join('');
+}
+
+function renderProgrammes(byProgramme) {
+  const chart = $('progChart');
+  let rows = Object.keys(byProgramme).map(k => ({ name: k, list: byProgramme[k] }))
+    .sort((a, b) => b.list.length - a.list.length || sum(b.list, 'net') - sum(a.list, 'net'));
+  if (rows.length > 9) {
+    const rest = rows.slice(8);
+    rows = rows.slice(0, 8).concat({ name: 'Other (' + rest.length + ' kinds)', list: [].concat.apply([], rest.map(r => r.list)) });
+  }
+  const max = Math.max.apply(null, rows.map(r => r.list.length));
+  chart.querySelector('.plot').innerHTML = rows.map((r, i) => '<div class="hrow" data-i="' + i + '"><span class="hl">' + esc(r.name) +
+    '</span><span class="ht"><span class="hb" style="width:calc((100% - 34px) * ' + (r.list.length / max) + ')"></span>' +
+    '<span class="hv">' + r.list.length + '</span></span></div>').join('');
+  chart.querySelectorAll('.hrow').forEach(row => {
+    const r = rows[+row.dataset.i];
+    row.addEventListener('mousemove', e => {
+      const box = chart.getBoundingClientRect();
+      showTip(chart, '<b>' + esc(r.name) + '</b><div><span>Events</span><span>' + r.list.length + '</span></div>' +
+        '<div><span>Hall income</span><span>' + rupees(sum(r.list, 'net')) + '</span></div>' +
+        '<div><span>Received</span><span>' + rupees(sum(r.list, 'received')) + '</span></div>',
+        e.clientX - box.left, e.clientY - box.top);
+    });
+    row.addEventListener('mouseleave', () => hideTip(chart));
+  });
+}
+
+function renderTable(list) {
+  const rows = (picked ? list.filter(b => b.month === picked) : list).slice()
+    .sort((a, b) => (a.date + (a.from || '')).localeCompare(b.date + (b.from || '')));
+  $('tableTitle').textContent = picked ? 'Events in ' + monthName(picked, true) : 'Events';
+  $('tableNote').innerHTML = rows.length + (rows.length === 1 ? ' event' : ' events') +
+    (picked ? ' · <button class="link" id="clearPick">Show all months</button>' : '');
+  if (picked) $('clearPick').addEventListener('click', () => { picked = null; render(); });
+  $('table').innerHTML = '<tr><th>Date</th><th>Name</th><th>Event</th><th class="n">Rent after discount</th>' +
+    '<th class="n">Received</th><th class="n">To receive</th><th>Security</th></tr>' +
+    rows.map(b => '<tr><td>' + fmtDate(b.date) + '</td><td class="name">' + esc(b.name || '') + '</td><td>' + esc(b.event || '') +
+      '</td><td class="n">' + rupees(b.net) + '</td><td class="n">' + rupees(b.received) + '</td><td class="n">' +
+      (b.due ? rupees(b.due) : '–') + '</td><td>' +
+      (!num(b.deposit) ? '–' : b.secrefunded === 'yes' ? 'Refunded' : b.securityHeld ? 'Held' : 'Not collected yet') +
+      '</td></tr>').join('');
+}
+
+function render() {
+  const years = Array.from(new Set(all.map(b => b.date.slice(0, 4)))).sort();
+  $('year').innerHTML = '<option value="all">All years</option>' + years.map(y => '<option' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('');
+  document.querySelectorAll('[data-view]').forEach(b => { b.className = b.dataset.view === view ? 'on' : ''; });
+  const list = selected();
+  if (picked && !list.some(b => b.month === picked)) picked = null;
+  $('content').hidden = !list.length;
+  $('empty').hidden = !!list.length;
+  if (!list.length) {
+    $('empty').textContent = all.length ? 'No events match this selection.'
+      : 'No bookings found on this device yet. Open the receipt page, wait for "Shared list up to date", then come back here.';
+    return;
+  }
+  const byMonth = group(list, 'month'), byProgramme = group(list, 'programme');
+  const keys = Object.keys(byMonth).sort(), months = [];
+  for (let y = +keys[0].slice(0, 4), m = +keys[0].slice(5); ; m++) {
+    if (m > 12) { m = 1; y++; }
+    const key = y + '-' + String(m).padStart(2, '0');
+    months.push(key);
+    if (key >= keys[keys.length - 1]) break;
+  }
+  const at = m => byMonth[m] || [];
+  renderTiles(list);
+  renderHighlights(list, byMonth, byProgramme);
+  renderProgrammes(byProgramme);
+  columns($('countChart'), months, [{ color: 'var(--series-1)', values: months.map(m => at(m).length) }], {
+    left: 28, whole: true, label: 'Bookings by month', fmt: v => String(v),
+    tip: m => '<b>' + monthName(m, true) + '</b><div><span>Events</span><span>' + at(m).length + '</span></div>' +
+      at(m).slice(0, 6).map(b => '<div><span>' + esc(b.name || '') + '</span></div>').join('') +
+      (at(m).length > 6 ? '<div><span>and ' + (at(m).length - 6) + ' more</span></div>' : ''),
+  });
+  columns($('moneyChart'), months, [
+    { color: 'var(--series-1)', values: months.map(m => sum(at(m), 'received')) },
+    { color: 'var(--series-2)', values: months.map(m => sum(at(m), 'due')) },
+  ], {
+    left: 62, label: 'Hall income by month', fmt: rupees,
+    tip: m => '<b>' + monthName(m, true) + '</b>' +
+      '<div><span><i style="background:var(--series-1)"></i>Received</span><span>' + rupees(sum(at(m), 'received')) + '</span></div>' +
+      '<div><span><i style="background:var(--series-2)"></i>Still to receive</span><span>' + rupees(sum(at(m), 'due')) + '</span></div>' +
+      '<div><span>Total</span><span>' + rupees(sum(at(m), 'net')) + '</span></div>',
+  });
+  renderTable(list);
+}
+
+function useBookings(list) {
+  all = list.filter(b => /^\d{4}-\d{2}-\d{2}$/.test(b.date || '')).map(enrich);
+  render();
+}
+
+// Shows this device's copy at once, then the latest from the shared Google Sheet when a link is set
+async function refresh() {
+  let local = [], settings = {};
+  try { local = JSON.parse(load(BOOKINGS_KEY)) || []; } catch (e) { local = []; }
+  try { settings = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { settings = {}; }
+  useBookings(local);
+  const url = (settings.syncUrl || '').trim();
+  if (!url) { $('status').textContent = "Showing this device's saved bookings."; return; }
+  $('status').textContent = 'Updating from the shared list…';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 20000);
+    try {
+      const data = await (await fetch(url, { signal: stop.signal })).json();
+      if (!data.ok) throw new Error(data.error);
+      const unsent = local.filter(b => !b.synced && !data.bookings.some(r => r.id === b.id));
+      useBookings(data.bookings.concat(unsent));
+      const now = new Date();
+      $('status').textContent = 'Shared list, updated ' + (now.getHours() % 12 || 12) + ':' +
+        String(now.getMinutes()).padStart(2, '0') + (now.getHours() < 12 ? ' AM' : ' PM') + '.';
+      return;
+    } catch (e) {
+      await new Promise(resolve => setTimeout(resolve, 4000));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  $('status').textContent = "Could not reach the shared list. Showing this device's copy.";
+}
+
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { view = b.dataset.view; render(); }));
+$('year').addEventListener('change', () => { year = $('year').value; render(); });
+$('refresh').addEventListener('click', refresh);
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+refresh();
+</script>
+</body>
+</html>
