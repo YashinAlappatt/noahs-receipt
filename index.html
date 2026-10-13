@@ -225,7 +225,7 @@ const SETTING_DEFAULTS = {
   tagline: 'MINI AUDITORIUM',
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
-  facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables',
+  facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Homeguard (to control road traffic)',
   syncUrl: '',
 };
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'balpaid', 'baldate'];
@@ -683,6 +683,8 @@ document.addEventListener('input', render);
 (function init() {
   let saved = {};
   try { saved = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
+  // A device still holding the earlier built-in list moves to the current one
+  if (saved.facilities === '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables') delete saved.facilities;
   SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
   qrData = load(QR_KEY) || DEFAULT_QR;
   if (navigator.canShare) $('share').hidden = false;
