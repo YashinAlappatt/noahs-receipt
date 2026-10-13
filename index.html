@@ -171,7 +171,7 @@
       <button id="saveBooking" class="ghost">Save booking</button>
       <button id="reset" class="ghost">New receipt</button>
     </div>
-    <p class="warn" id="unsaved" hidden>Changes to this booking are not saved yet. Press "Save changes".</p>
+    <p class="warn" id="unsaved" hidden>Changes to this booking are not saved yet. Press "Save changes", or make the receipt and it saves by itself.</p>
 
     <div class="copy">
       <div class="copy-head"><span>Booking details as text</span><button id="copyText" class="ghost">Copy</button></div>
@@ -563,18 +563,21 @@ function download(blob, name) {
 }
 
 $('savePng').addEventListener('click', async () => {
+  autoSave();
   try {
     download(await pngBlob(), fileName(readForm()) + '.png');
   } catch (e) { alert(e.message); }
 });
 
 $('savePdf').addEventListener('click', async () => {
+  autoSave();
   try {
     download(await pdfBlob(), fileName(readForm()) + '.pdf');
   } catch (e) { alert(e.message); }
 });
 
 $('share').addEventListener('click', async () => {
+  autoSave();
   try {
     const file = new File([await pngBlob()], fileName(readForm()) + '.png', { type: 'image/png' });
     if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
@@ -717,8 +720,8 @@ async function deleteBooking(b) {
   renderSaved();
 }
 
-$('saveBooking').addEventListener('click', () => {
-  if (!$('name').value.trim()) { alert('Enter the name before saving.'); $('name').focus(); return; }
+// Saves the form as a booking (a new one, or over the one that is open) and sends it to the shared list
+function saveCurrent() {
   const list = loadBookings();
   const b = { id: currentId || Date.now().toString(36) };
   FORM_IDS.forEach(id => { b[id] = $(id).value.trim(); });
@@ -726,13 +729,25 @@ $('saveBooking').addEventListener('click', () => {
   if (i >= 0) list[i] = b; else list.push(b);
   if (!storeBookings(list)) {
     alert('Could not save on this device. The browser may be in private mode or out of space.');
-    return;
+    return false;
   }
   currentId = b.id;
   renderSaved();
   $('saveBooking').textContent = 'Saved';
   setTimeout(renderSaved, 1500);
   syncBookings();
+  return true;
+}
+
+// Making a receipt also saves the booking, so the saved copy always matches what was sent out.
+// Nothing is saved without a name, or when the open booking has not changed.
+function autoSave() {
+  if ($('name').value.trim() && (!currentId || unsavedChanges())) saveCurrent();
+}
+
+$('saveBooking').addEventListener('click', () => {
+  if (!$('name').value.trim()) { alert('Enter the name before saving.'); $('name').focus(); return; }
+  saveCurrent();
 });
 
 // Entering a balance payment dates it today unless a date is already set
