@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking Receipt</title>
+<style>
+  :root {
+    --green: #1f3d2b;
+    --gold: #b08d57;
+    --paper: #fbf8f1;
+    --ink: #26302a;
+    --muted: #6f776f;
+    --line: #dcd6c6;
+    --bg: #eef0ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: minmax(300px, 400px) 1fr;
+    gap: 24px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    align-items: start;
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  h1 {
+    margin: 0 0 16px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 22px;
+    font-weight: normal;
+    color: var(--green);
+  }
+  .wrap > * { min-width: 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    color: inherit;
+    background: #fff;
+  }
+  input:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
+  .balance {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .balance b { font-family: Georgia, serif; font-size: 20px; color: var(--green); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button {
+    font: inherit;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: #fff;
+    cursor: pointer;
+  }
+  button.ghost { background: #fff; color: var(--green); }
+  button:hover { opacity: .9; }
+  details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  summary { cursor: pointer; color: var(--green); font-size: 14px; }
+  details .grid { margin-top: 12px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .preview svg {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    margin: 0 auto;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, .14);
+  }
+  @media (max-width: 820px) {
+    .wrap { grid-template-columns: 1fr; }
+  }
+  @page { size: A5; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .panel { display: none; }
+    .wrap { display: block; padding: 0; max-width: none; }
+    .preview svg { width: 100vw; max-width: none; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>Booking Receipt</h1>
+    <div class="grid">
+      <div class="full"><label for="name">Name</label><input id="name" autocomplete="off"></div>
+      <div><label for="place">Place</label><input id="place" autocomplete="off"></div>
+      <div><label for="phone">Phone No.</label><input id="phone" inputmode="tel" autocomplete="off"></div>
+      <div class="full"><label for="event">Event</label><input id="event" list="events" autocomplete="off">
+        <datalist id="events">
+          <option>Birthday</option><option>Wedding Reception</option><option>Engagement</option>
+          <option>Baptism</option><option>Housewarming</option><option>Meeting</option>
+        </datalist>
+      </div>
+      <div class="full"><label for="date">Date</label><input id="date" type="date"></div>
+      <div><label for="from">Time from</label><input id="from" type="time" step="900"></div>
+      <div><label for="to">Time to</label><input id="to" type="time" step="900"></div>
+      <div><label for="rent">Total Rent (₹)</label><input id="rent" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="deposit">Security Amount (₹)</label><input id="deposit" type="number" min="0" inputmode="numeric" value="1000"></div>
+      <div><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="payby">Balance due on or before</label><input id="payby" type="date"></div>
+    </div>
+    <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
+
+    <div class="actions">
+      <button id="savePng">Save as photo</button>
+      <button id="savePdf">Save as PDF</button>
+      <button id="share" class="ghost" hidden>Share</button>
+      <button id="reset" class="ghost">New receipt</button>
+    </div>
+    <p class="hint">For PDF, choose "Save as PDF" as the printer in the window that opens.</p>
+
+    <details>
+      <summary>Venue &amp; payment details</summary>
+      <div class="grid">
+        <div class="full"><label for="venue">Venue name</label><input id="venue"></div>
+        <div class="full"><label for="tagline">Line under the name</label><input id="tagline"></div>
+        <div><label for="gpay">GPay number</label><input id="gpay"></div>
+        <div><label for="bank">Banking name</label><input id="bank"></div>
+        <div class="full">
+          <label for="qr">Payment QR code picture</label>
+          <input id="qr" type="file" accept="image/*">
+          <p class="hint">Chosen once and remembered on this device. <a href="#" id="qrClear">Remove QR</a></p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="preview" id="preview"></div>
+</div>
+
+<script>
+const W = 800, H = 1131;
+const GREEN = '#1f3d2b', GOLD = '#b08d57', GOLD_LIGHT = '#e7cf9a', PAPER = '#fbf8f1',
+      INK = '#26302a', MUTED = '#6f776f', RULE = '#e2dccb', TINT = '#f3eee1';
+const SERIF = "Georgia, 'Times New Roman', serif";
+const SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const SETTINGS_KEY = 'ngs-receipt-settings';
+const QR_KEY = 'ngs-receipt-qr';
+const SETTING_DEFAULTS = {
+  venue: "NOAH'S GREEN SQUARE",
+  tagline: 'MINI AUDITORIUM',
+  gpay: '8129685015',
+  bank: 'ALAPPATT METALS',
+};
+const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'payby'];
+const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
+
+const $ = id => document.getElementById(id);
+let qrData = '';
+let paybyEdited = false;
+
+function load(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function save(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value); else localStorage.removeItem(key);
+  } catch (e) { /* storage unavailable: carry on without remembering */ }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function parseDate(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function fmtDate(d) {
+  return d ? String(d.getDate()).padStart(2, '0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() : '';
+}
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fmtTime(v) {
+  const m = /^(\d{2}):(\d{2})/.exec(v || '');
+  if (!m) return '';
+  const h = +m[1], h12 = h % 12 || 12;
+  return h12 + (m[2] === '00' ? '' : ':' + m[2]) + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+function rupees(n) {
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+function num(id) {
+  return Math.max(0, parseFloat($(id).value) || 0);
+}
+
+function readForm() {
+  const f = {};
+  FORM_IDS.concat(SETTING_IDS).forEach(id => { f[id] = $(id).value.trim(); });
+  f.rent = num('rent');
+  f.deposit = num('deposit');
+  f.advance = num('advance');
+  f.total = f.rent + f.deposit;
+  f.balance = f.total - f.advance;
+  f.dateObj = parseDate(f.date);
+  f.paybyObj = parseDate(f.payby);
+  return f;
+}
+
+function text(x, y, str, o) {
+  o = o || {};
+  return '<text x="' + x + '" y="' + y + '" font-family="' + (o.font || SANS) + '" font-size="' + (o.size || 16) +
+    '" fill="' + (o.fill || INK) + '" text-anchor="' + (o.anchor || 'start') + '"' +
+    (o.spacing ? ' letter-spacing="' + o.spacing + '"' : '') +
+    (o.weight ? ' font-weight="' + o.weight + '"' : '') +
+    (o.italic ? ' font-style="italic"' : '') + '>' + esc(str) + '</text>';
+}
+function ornament(y, half) {
+  return '<line x1="' + (400 - half) + '" y1="' + y + '" x2="388" y2="' + y + '" stroke="' + GOLD + '" stroke-width="1"/>' +
+    '<path d="M400 ' + (y - 6) + ' L406 ' + y + ' L400 ' + (y + 6) + ' L394 ' + y + ' Z" fill="' + GOLD + '"/>' +
+    '<line x1="412" y1="' + y + '" x2="' + (400 + half) + '" y2="' + y + '" stroke="' + GOLD + '" stroke-width="1"/>';
+}
+
+function buildSvg(f) {
+  const s = [];
+  s.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W +
+    '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">');
+  s.push('<rect width="' + W + '" height="' + H + '" fill="' + PAPER + '"/>');
+  s.push('<rect x="20" y="20" width="760" height="1091" fill="none" stroke="' + GOLD + '" stroke-width="1.5"/>');
+  s.push('<rect x="28" y="28" width="744" height="1075" fill="none" stroke="' + GOLD + '" stroke-width="0.5"/>');
+
+  // Header band
+  s.push('<rect x="40" y="40" width="720" height="176" fill="' + GREEN + '"/>');
+  const venueSize = f.venue.length > 22 ? 30 : 38;
+  s.push(text(400, 118, f.venue, { font: SERIF, size: venueSize, fill: PAPER, anchor: 'middle', spacing: 5 }));
+  s.push(ornament(148, 90));
+  s.push(text(400, 182, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
+
+  s.push(text(400, 264, 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
+  s.push(text(400, 290, 'Issued ' + fmtDate(new Date()), { size: 12, fill: MUTED, anchor: 'middle' }));
+
+  // Customer
+  const name = f.name || 'Customer name';
+  s.push(text(400, 352, name, { font: SERIF, size: name.length > 26 ? 26 : 34, fill: GREEN, anchor: 'middle' }));
+  const sub = [f.place, f.phone].filter(Boolean).join('  ·  ');
+  if (sub) s.push(text(400, 382, sub, { size: 16, fill: MUTED, anchor: 'middle' }));
+
+  // Event / date / time
+  s.push('<rect x="80" y="412" width="640" height="96" rx="6" fill="' + TINT + '"/>');
+  s.push('<line x1="293" y1="428" x2="293" y2="492" stroke="' + RULE + '"/>');
+  s.push('<line x1="507" y1="428" x2="507" y2="492" stroke="' + RULE + '"/>');
+  const time = [fmtTime(f.from), fmtTime(f.to)].filter(Boolean).join(' to ');
+  const cols = [
+    [187, 'EVENT', f.event || '—', ''],
+    [400, 'DATE', fmtDate(f.dateObj) || '—', f.dateObj ? DAYS[f.dateObj.getDay()] : ''],
+    [613, 'TIME', time || '—', ''],
+  ];
+  cols.forEach(c => {
+    const hasSub = !!c[3];
+    s.push(text(c[0], hasSub ? 440 : 446, c[1], { size: 11, fill: GOLD, anchor: 'middle', spacing: 3 }));
+    s.push(text(c[0], hasSub ? 468 : 478, c[2], { font: SERIF, size: c[2].length > 18 ? 16 : 20, anchor: 'middle' }));
+    if (hasSub) s.push(text(c[0], 490, c[3], { size: 12, fill: MUTED, anchor: 'middle' }));
+  });
+
+  // Amounts
+  const rows = [['Hall Rent', rupees(f.rent)]];
+  if (f.deposit) rows.push(['Refundable Security Deposit', rupees(f.deposit)]);
+  rows.push(['Total', rupees(f.total), true]);
+  rows.push(['Advance Received', (f.advance ? '− ' : '') + rupees(f.advance)]);
+  let y = 562;
+  rows.forEach(r => {
+    const o = r[2] ? { size: 18, weight: 600, fill: GREEN } : { size: 17 };
+    s.push(text(100, y, r[0], o));
+    s.push(text(700, y, r[1], Object.assign({ anchor: 'end' }, o)));
+    s.push('<line x1="100" y1="' + (y + 14) + '" x2="700" y2="' + (y + 14) + '" stroke="' + RULE + '"/>');
+    y += 40;
+  });
+
+  y -= 8;
+  s.push('<rect x="80" y="' + y + '" width="640" height="70" rx="6" fill="' + GREEN + '"/>');
+  if (f.balance > 0) {
+    s.push(text(108, y + 42, 'BALANCE TO BE PAID', { size: 14, fill: PAPER, spacing: 3 }));
+    s.push(text(692, y + 46, rupees(f.balance), { font: SERIF, size: 30, fill: GOLD_LIGHT, anchor: 'end' }));
+  } else if (f.balance < 0) {
+    s.push(text(108, y + 42, 'EXCESS RECEIVED', { size: 14, fill: PAPER, spacing: 3 }));
+    s.push(text(692, y + 46, rupees(-f.balance), { font: SERIF, size: 30, fill: GOLD_LIGHT, anchor: 'end' }));
+  } else {
+    s.push(text(400, y + 45, 'PAID IN FULL', { size: 18, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
+  }
+
+  // Payment
+  if (f.balance > 0) {
+    y += 112;
+    s.push(text(400, y + 4, 'PAYMENT', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
+    s.push('<line x1="100" y1="' + y + '" x2="340" y2="' + y + '" stroke="' + RULE + '"/>');
+    s.push('<line x1="460" y1="' + y + '" x2="700" y2="' + y + '" stroke="' + RULE + '"/>');
+    const tx = qrData ? 290 : 400, anchor = qrData ? 'start' : 'middle';
+    let ty = y + (qrData ? 52 : 40);
+    if (qrData) {
+      s.push('<rect x="100" y="' + (y + 22) + '" width="160" height="160" rx="4" fill="#fff" stroke="' + RULE + '"/>');
+      s.push('<image x="106" y="' + (y + 28) + '" width="148" height="148" preserveAspectRatio="xMidYMid meet" href="' +
+        qrData + '" xlink:href="' + qrData + '"/>');
+    }
+    if (f.paybyObj) {
+      s.push(text(tx, ty, 'Please pay the balance on or before', { size: 14, fill: MUTED, anchor: anchor }));
+      s.push(text(tx, ty + 28, fmtDate(f.paybyObj), { font: SERIF, size: 22, fill: GREEN, anchor: anchor }));
+      ty += 64;
+    }
+    if (qrData) { s.push(text(tx, ty, 'Scan the QR code to pay by UPI', { size: 15, anchor: anchor })); ty += 26; }
+    if (f.gpay) { s.push(text(tx, ty, (qrData ? 'or GPay to ' : 'GPay to ') + f.gpay, { size: 15, anchor: anchor })); ty += 26; }
+    if (f.bank) s.push(text(tx, ty, 'Banking name: ' + f.bank, { size: 13, fill: MUTED, anchor: anchor }));
+  }
+
+  // Footer
+  if (f.deposit) {
+    s.push(text(400, 1040, 'The security deposit will be refunded after the function, subject to no damages.',
+      { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
+  }
+  s.push(text(400, 1076, 'Thank you for choosing us. We look forward to hosting your event.',
+    { font: SERIF, size: 16, fill: GREEN, anchor: 'middle', italic: true }));
+  s.push('</svg>');
+  return s.join('');
+}
+
+function fileName(f) {
+  const parts = ['Booking', f.name, fmtDate(f.dateObj)].filter(Boolean);
+  return parts.join(' - ').replace(/[\\/:*?"<>|]/g, '');
+}
+
+function render() {
+  const f = readForm();
+  $('preview').innerHTML = buildSvg(f);
+  $('balanceOut').textContent = rupees(f.balance);
+  document.title = fileName(f);
+}
+
+function pngBlob() {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([buildSvg(readForm())], { type: 'image/svg+xml;charset=utf-8' }));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = W * 2;
+      canvas.height = H * 2;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not make the picture')), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not make the picture')); };
+    img.src = url;
+  });
+}
+
+$('savePng').addEventListener('click', async () => {
+  try {
+    const blob = await pngBlob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName(readForm()) + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch (e) { alert(e.message); }
+});
+
+$('savePdf').addEventListener('click', () => window.print());
+
+$('share').addEventListener('click', async () => {
+  try {
+    const file = new File([await pngBlob()], fileName(readForm()) + '.png', { type: 'image/png' });
+    if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
+    else alert('Sharing a picture is not supported here. Use "Save as photo" instead.');
+  } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
+});
+
+$('reset').addEventListener('click', () => {
+  FORM_IDS.forEach(id => { $(id).value = id === 'deposit' ? '1000' : ''; });
+  paybyEdited = false;
+  render();
+  $('name').focus();
+});
+
+$('date').addEventListener('input', () => {
+  const d = parseDate($('date').value);
+  if (d && !paybyEdited) {
+    d.setDate(d.getDate() - 2);
+    $('payby').value = isoDate(d);
+  }
+});
+$('payby').addEventListener('input', () => { paybyEdited = true; });
+
+$('qr').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { qrData = reader.result; save(QR_KEY, qrData); render(); };
+  reader.readAsDataURL(file);
+});
+$('qrClear').addEventListener('click', e => {
+  e.preventDefault();
+  qrData = '';
+  $('qr').value = '';
+  save(QR_KEY, '');
+  render();
+});
+
+SETTING_IDS.forEach(id => {
+  $(id).addEventListener('input', () => {
+    const out = {};
+    SETTING_IDS.forEach(k => { out[k] = $(k).value; });
+    save(SETTINGS_KEY, JSON.stringify(out));
+  });
+});
+document.addEventListener('input', render);
+
+(function init() {
+  let saved = {};
+  try { saved = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
+  SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
+  qrData = load(QR_KEY) || '';
+  if (navigator.canShare) $('share').hidden = false;
+  render();
+})();
+</script>
+</body>
+</html>
