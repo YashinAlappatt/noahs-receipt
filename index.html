@@ -221,7 +221,7 @@ const BOOKINGS_KEY = 'ngs-receipt-bookings';
 const DEFAULT_QR = 'data:image/png;base64,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';
 const SETTING_DEFAULTS = {
   venue: "NOAH'S GREEN SQUARE",
-  tagline: 'MINI AUDITORIUM',
+  tagline: '',
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
   facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Ample Car Parking  ·  Homeguard (to control road traffic)',
@@ -316,9 +316,10 @@ function buildSvg(f) {
   // Header band
   s.push('<rect x="40" y="40" width="720" height="150" fill="' + GREEN + '"/>');
   const venueSize = f.venue.length > 22 ? 30 : 38;
-  s.push(text(400, 108, f.venue, { font: SERIF, size: venueSize, fill: PAPER, anchor: 'middle', spacing: 5 }));
-  s.push(ornament(134, 90));
-  s.push(text(400, 164, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
+  // Without a line under the name, the name and ornament sit centred in the band
+  s.push(text(400, f.tagline ? 108 : 120, f.venue, { font: SERIF, size: venueSize, fill: PAPER, anchor: 'middle', spacing: 5 }));
+  s.push(ornament(f.tagline ? 134 : 152, 90));
+  if (f.tagline) s.push(text(400, 164, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
 
   s.push('<g transform="translate(0,-26)">');
   s.push(text(400, 254, 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
@@ -752,6 +753,7 @@ document.addEventListener('input', render);
   try { saved = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
   // A device still holding the earlier built-in list moves to the current one
   if (OLD_FACILITIES.indexOf(saved.facilities) >= 0) delete saved.facilities;
+  if (saved.tagline === 'MINI AUDITORIUM') delete saved.tagline;
   SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
   qrData = load(QR_KEY) || DEFAULT_QR;
   if (navigator.canShare) $('share').hidden = false;
