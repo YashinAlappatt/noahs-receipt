@@ -154,8 +154,9 @@
       <div><label for="from">Time from</label><input id="from" type="time" step="900"></div>
       <div><label for="to">Time to</label><input id="to" type="time" step="900"></div>
       <div><label for="rent">Total Rent (₹)</label><input id="rent" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="discount">Discount (₹)</label><input id="discount" type="number" min="0" inputmode="numeric"></div>
       <div><label for="deposit">Security Amount (₹)</label><input id="deposit" type="number" min="0" inputmode="numeric" value="1000"></div>
-      <div class="full"><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
       <div><label for="balpaid">Balance Received (₹)</label><input id="balpaid" type="number" min="0" inputmode="numeric"></div>
       <div><label for="baldate">Balance received on</label><input id="baldate" type="date"></div>
     </div>
@@ -239,7 +240,7 @@ const OLD_FACILITIES = [
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Homeguard (to control road traffic)',
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
 ];
-const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'balpaid', 'baldate'];
+const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 
 const $ = id => document.getElementById(id);
@@ -283,10 +284,11 @@ function readForm() {
   const f = {};
   FORM_IDS.concat(SETTING_IDS).forEach(id => { f[id] = $(id).value.trim(); });
   f.rent = num('rent');
+  f.discount = num('discount');
   f.deposit = num('deposit');
   f.advance = num('advance');
   f.balpaid = num('balpaid');
-  f.total = f.rent + f.deposit;
+  f.total = f.rent - f.discount + f.deposit;
   f.balance = f.total - f.advance - f.balpaid;
   f.baldateObj = parseDate(f.baldate);
   f.dateObj = parseDate(f.date);
@@ -357,19 +359,23 @@ function buildSvg(f) {
 
   // Amounts
   const rows = [['Hall Rent', rupees(f.rent)]];
+  if (f.discount) rows.push(['Discount', '− ' + rupees(f.discount)]);
   if (f.deposit) rows.push(['Refundable Security Deposit', rupees(f.deposit)]);
   rows.push(['Total', rupees(f.total), true]);
   rows.push(['Advance Received', (f.advance ? '− ' : '') + rupees(f.advance)]);
   if (f.balpaid) {
     rows.push(['Balance Received' + (f.baldateObj ? ' on ' + fmtDate(f.baldateObj) : ''), '− ' + rupees(f.balpaid)]);
   }
-  const step = rows.length > 4 ? 32 : 38;
-  let y = 530;
+  // More rows sit closer together so the sections below keep their place
+  const tight = rows.length > 5;
+  const step = tight ? 27 : rows.length > 4 ? 32 : 38;
+  let y = tight ? 526 : 530;
   rows.forEach(r => {
-    const o = r[2] ? { size: 18, weight: 600, fill: GREEN } : { size: 17 };
+    const o = r[2] ? { size: tight ? 17 : 18, weight: 600, fill: GREEN } : { size: tight ? 16 : 17 };
+    const rule = y + (tight ? 9 : 14);
     s.push(text(100, y, r[0], o));
     s.push(text(700, y, r[1], Object.assign({ anchor: 'end' }, o)));
-    s.push('<line x1="100" y1="' + (y + 14) + '" x2="700" y2="' + (y + 14) + '" stroke="' + RULE + '"/>');
+    s.push('<line x1="100" y1="' + rule + '" x2="700" y2="' + rule + '" stroke="' + RULE + '"/>');
     y += step;
   });
 
@@ -464,10 +470,13 @@ function plainText(f) {
     f.event,
     date,
     time,
-    'Total Rent - ' + withDeposit(f.rent),
+    'Total Rent - ' + (f.discount
+      ? n(f.rent) + ' - ' + Math.round(f.discount) + ' (dis)' +
+        (f.deposit ? ' + ' + Math.round(f.deposit) + ' = ' + n(f.rent - f.discount + f.deposit) : '')
+      : withDeposit(f.rent)),
     'Advance - ' + n(f.advance),
     ('Phn No. - ' + f.phone).trim(),
-    'Balance Amt - ' + withDeposit(f.rent - f.advance),
+    'Balance Amt - ' + withDeposit(f.rent - f.discount - f.advance),
   ].join('\n');
 }
 
@@ -638,7 +647,8 @@ function renderSaved() {
     who.className = 'who';
     who.textContent = b.name || 'No name';
     const small = document.createElement('small');
-    const balance = (parseFloat(b.rent) || 0) + (parseFloat(b.deposit) || 0) - (parseFloat(b.advance) || 0) -
+    const balance = (parseFloat(b.rent) || 0) - (parseFloat(b.discount) || 0) + (parseFloat(b.deposit) || 0) -
+      (parseFloat(b.advance) || 0) -
       (parseFloat(b.balpaid) || 0);
     const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
     small.textContent = [fmtDate(parseDate(b.date)), when, b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
