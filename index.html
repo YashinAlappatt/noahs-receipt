@@ -57,6 +57,8 @@
     color: inherit;
     background: #fff;
   }
+  input[type=checkbox] { width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--green); }
+  .check label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--ink); }
   input:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
   .balance {
     margin-top: 14px;
@@ -162,6 +164,7 @@
       <div><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
       <div><label for="balpaid">Balance Received (₹)</label><input id="balpaid" type="number" min="0" inputmode="numeric"></div>
       <div><label for="baldate">Balance received on</label><input id="baldate" type="date"></div>
+      <div class="full check"><label><input id="secrefunded" type="checkbox"> Security amount refunded</label></div>
     </div>
     <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
     <p class="hint" id="dueOut"></p>
@@ -244,7 +247,17 @@ const OLD_FACILITIES = [
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Homeguard (to control road traffic)',
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
 ];
-const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate'];
+const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate',
+  'secrefunded'];
+// A tick box is stored as 'yes' or '', every other field as its text
+function getField(id) {
+  const el = $(id);
+  return el.type === 'checkbox' ? (el.checked ? 'yes' : '') : el.value.trim();
+}
+function setField(id, value) {
+  const el = $(id);
+  if (el.type === 'checkbox') el.checked = value === 'yes'; else el.value = value;
+}
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 
 const $ = id => document.getElementById(id);
@@ -286,7 +299,7 @@ function num(id) {
 
 function readForm() {
   const f = {};
-  FORM_IDS.concat(SETTING_IDS).forEach(id => { f[id] = $(id).value.trim(); });
+  FORM_IDS.concat(SETTING_IDS).forEach(id => { f[id] = getField(id); });
   f.rent = num('rent');
   f.discount = num('discount');
   f.deposit = num('deposit');
@@ -450,7 +463,9 @@ function buildSvg(f) {
 
   // Footer
   if (f.deposit) {
-    s.push(text(400, 1063, 'The security deposit will be refunded after the function, subject to no damages.',
+    s.push(text(400, 1063, f.secrefunded
+      ? 'The security deposit of ' + rupees(f.deposit) + ' has been refunded.'
+      : 'The security deposit will be refunded after the function, subject to no damages.',
       { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
   }
   s.push(text(400, 1087, 'Thank you for choosing us. We look forward to hosting your event.',
@@ -700,7 +715,7 @@ function showClash() {
 // True when the open booking's form no longer matches its saved copy
 function unsavedChanges() {
   const b = currentId && loadBookings().find(x => x.id === currentId);
-  return !!b && FORM_IDS.some(id => $(id).value.trim() !== (b[id] != null ? String(b[id]) : ''));
+  return !!b && FORM_IDS.some(id => getField(id) !== (b[id] != null ? String(b[id]) : ''));
 }
 
 function renderSaved() {
@@ -728,6 +743,8 @@ function renderSaved() {
       (parseFloat(b.balpaid) || 0);
     const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
     small.textContent = [fmtDate(parseDate(b.date)), when, b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
+      !(parseFloat(b.deposit) > 0) ? '' : b.secrefunded === 'yes' ? 'Security refunded'
+        : b.date && b.date < today ? 'Security not refunded' : '',
       syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
@@ -759,7 +776,7 @@ function renderSaved() {
 }
 
 function openBooking(b) {
-  FORM_IDS.forEach(id => { $(id).value = b[id] != null ? b[id] : ''; });
+  FORM_IDS.forEach(id => { setField(id, b[id] != null ? b[id] : ''); });
   currentId = b.id;
   render();
   renderSaved();
@@ -791,7 +808,7 @@ async function deleteBooking(b) {
 function saveCurrent() {
   const list = loadBookings();
   const b = { id: currentId || Date.now().toString(36) };
-  FORM_IDS.forEach(id => { b[id] = $(id).value.trim(); });
+  FORM_IDS.forEach(id => { b[id] = getField(id); });
   const i = list.findIndex(x => x.id === b.id);
   if (i >= 0) list[i] = b; else list.push(b);
   if (!storeBookings(list)) {
@@ -847,7 +864,7 @@ $('copyText').addEventListener('click', async () => {
 });
 
 $('reset').addEventListener('click', () => {
-  FORM_IDS.forEach(id => { $(id).value = id === 'deposit' ? '1000' : ''; });
+  FORM_IDS.forEach(id => { setField(id, id === 'deposit' ? '1000' : ''); });
   currentId = null;
   render();
   renderSaved();
