@@ -365,9 +365,10 @@ function buildSvg(f) {
   return s.join('');
 }
 
-// Plain-text summary for pasting elsewhere. Balance here is rent minus advance, without the security amount.
+// Plain-text summary for pasting elsewhere. The security amount is shown as a separate "+ 1000 =" step.
 function plainText(f) {
   const n = v => Math.round(v).toLocaleString('en-IN');
+  const withDeposit = v => f.deposit ? n(v) + ' + ' + Math.round(f.deposit) + ' = ' + n(v + f.deposit) : n(v);
   const date = f.dateObj
     ? MONTHS[f.dateObj.getMonth()] + ' ' + String(f.dateObj.getDate()).padStart(2, '0') + ' ' + f.dateObj.getFullYear() +
       ', ' + DAYS[f.dateObj.getDay()]
@@ -379,10 +380,10 @@ function plainText(f) {
     f.event,
     date,
     time,
-    'Total Rent - ' + n(f.rent),
+    'Total Rent - ' + withDeposit(f.rent),
     'Advance - ' + n(f.advance),
     ('Phn No. - ' + f.phone).trim(),
-    'Balance Amt - ' + n(f.rent - f.advance),
+    'Balance Amt - ' + withDeposit(f.rent - f.advance),
   ].join('\n');
 }
 
