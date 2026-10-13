@@ -96,7 +96,7 @@ const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
-const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV';
+const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV', INSTAGRAM = '@noahsgreensquare';
 const BOOKINGS_KEY = 'ngs-receipt-bookings';
 
 const $ = id => document.getElementById(id);
@@ -166,20 +166,25 @@ function defaultMessage(b) {
       'If there was anything we could have done better, please let us know. Your feedback helps us serve families with more care.',
       'With respectful regards,' + sign].join('\n\n');
   }
+  // Photos and Instagram: asked for celebrations, not for a meeting
+  const photos = kind === 'meeting' ? [] : ['We would also love to see your photos from the day. '
+    + 'Do follow us on Instagram at ' + INSTAGRAM + ' and tag us, so that we can share in your happy memories.'];
   const what = event ? event + (kind === 'birthday' && !/celebration|party/i.test(event) ? ' celebration' : '') : 'event';
   if (!person) {
     return [dear,
       'Thank you for holding your ' + what + ' at ' + VENUE + (on ? ' on ' + on : '') + '. ' + PERSONAL_LINE[kind],
       'We would value your honest feedback, both what worked well and what we should improve.',
       'If you were satisfied, we would appreciate a short review about us on Google. I am sending the link along with this card.',
-      'With warm regards,' + sign].join('\n\n');
+    ].concat(photos).concat([
+      'With warm regards,' + sign]).join('\n\n');
   }
   return [dear,
     'Thank you for choosing ' + VENUE + ' for the ' + what + (on ? ' on ' + on : '') + '. ' + PERSONAL_LINE[kind],
     'We would be grateful to hear how it went for you: what you liked, and what we could have done better. ' +
       'Please tell us frankly; it helps us improve.',
     'If you were happy with the hall, a few words about us on Google would mean a lot. I am sending the link along with this card.',
-    'With warm regards,' + sign].join('\n\n');
+  ].concat(photos).concat([
+    'With warm regards,' + sign]).join('\n\n');
 }
 
 const measure = document.createElement('canvas').getContext('2d');
