@@ -222,8 +222,11 @@ function readForm() {
   f.total = f.rent + f.deposit;
   f.balance = f.total - f.advance;
   f.dateObj = parseDate(f.date);
-  // Balance is due two days before the event
+  // Balance is due two days before the event, or today if that day has already passed
   f.paybyObj = f.dateObj ? new Date(f.dateObj.getFullYear(), f.dateObj.getMonth(), f.dateObj.getDate() - 2) : null;
+  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  f.paybyToday = !!f.paybyObj && f.paybyObj < today;
+  if (f.paybyToday) f.paybyObj = today;
   return f;
 }
 
@@ -352,7 +355,7 @@ function render() {
   $('preview').innerHTML = buildSvg(f);
   $('balanceOut').textContent = rupees(f.balance);
   $('dueOut').textContent = f.paybyObj && f.balance > 0
-    ? 'Balance due on or before ' + fmtDate(f.paybyObj) + ' (2 days before the event)' : '';
+    ? 'Balance due on or before ' + fmtDate(f.paybyObj) + (f.paybyToday ? ' (today, as the event is less than 2 days away)' : ' (2 days before the event)') : '';
   document.title = fileName(f);
 }
 
