@@ -126,6 +126,7 @@
   <div id="empty" class="card empty" hidden></div>
 
   <div id="content">
+   <div id="main">
     <div class="tiles" id="tiles"></div>
 
     <div class="two">
@@ -168,6 +169,13 @@
       <h2 id="tableTitle">Events</h2>
       <p class="note" id="tableNote"></p>
       <div class="tablewrap"><table id="table"></table></div>
+    </div>
+   </div>
+
+    <div class="card" id="cancelCard" hidden>
+      <h2>Cancelled events</h2>
+      <p class="note" id="cancelNote"></p>
+      <div class="tablewrap"><table id="cancelTable"></table></div>
     </div>
   </div>
 </main>
@@ -233,8 +241,12 @@ function enrich(b) {
   });
 }
 
+// Cancelled events are kept out of every figure and chart, and listed on their own
+function cancelledEvents() {
+  return all.filter(b => b.cancelled === 'yes' && (year === 'all' || b.date.slice(0, 4) === year));
+}
 function selected() {
-  return all.filter(b => (view === 'all' || (view === 'finished') === b.finished) &&
+  return all.filter(b => b.cancelled !== 'yes' && (view === 'all' || (view === 'finished') === b.finished) &&
     (year === 'all' || b.date.slice(0, 4) === year));
 }
 function sum(list, key) {
@@ -424,9 +436,16 @@ function render() {
   const years = Array.from(new Set(all.map(b => b.date.slice(0, 4)))).sort();
   $('year').innerHTML = '<option value="all">All years</option>' + years.map(y => '<option' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('');
   document.querySelectorAll('[data-view]').forEach(b => { b.className = b.dataset.view === view ? 'on' : ''; });
-  const list = selected();
+  const list = selected(), gone = cancelledEvents();
+  $('cancelCard').hidden = !gone.length;
+  $('cancelNote').textContent = gone.length + (gone.length === 1 ? ' event' : ' events') +
+    ', not counted in any figure above. Money received on them: ' + rupees(gone.reduce((a, b) => a + num(b.advance) + num(b.balpaid), 0)) + '.';
+  $('cancelTable').innerHTML = '<tr><th>Date</th><th>Name</th><th>Event</th><th>Reason</th><th class="n">Money received</th></tr>' +
+    gone.slice().sort((a, b) => a.date.localeCompare(b.date)).map(b => '<tr><td>' + fmtDate(b.date) + '</td><td class="name">' +
+      esc(b.name || '') + '</td><td>' + esc(b.event || '') + '</td><td class="name">' + esc(b.cancelreason || '–') +
+      '</td><td class="n">' + rupees(num(b.advance) + num(b.balpaid)) + '</td></tr>').join('');
   if (picked && !list.some(b => b.month === picked)) picked = null;
-  $('content').hidden = !list.length;
+  $('main').hidden = !list.length;
   $('empty').hidden = !!list.length;
   if (!list.length) {
     $('empty').textContent = all.length ? 'No events match this selection.'

@@ -126,6 +126,7 @@
   .saved .btns { display: flex; gap: 6px; flex-shrink: 0; }
   .saved button { padding: 5px 10px; font-size: 13px; }
   .tabs { display: flex; gap: 8px; margin-top: 10px; }
+  .tabs { flex-wrap: wrap; }
   .tabs button { flex: 1; padding: 7px 10px; font-size: 14px; }
   .warn { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: #9a4a00; }
   #clash { margin: 0; white-space: pre-line; }
@@ -179,6 +180,8 @@
       <div><label for="balpaid">Balance Received (₹)</label><input id="balpaid" type="number" min="0" inputmode="numeric"></div>
       <div><label for="baldate">Balance received on</label><input id="baldate" type="date"></div>
       <div class="full check"><label><input id="secrefunded" type="checkbox"> Security amount refunded</label></div>
+      <div class="full check"><label><input id="cancelled" type="checkbox"> Event cancelled</label></div>
+      <div class="full" id="reasonWrap" hidden><label for="cancelreason">Reason for cancelling (optional)</label><input id="cancelreason" autocomplete="off"></div>
     </div>
     <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
     <p class="hint" id="dueOut"></p>
@@ -203,6 +206,7 @@
       <div class="tabs">
         <button id="tabUpcoming">Upcoming</button>
         <button id="tabFinished" class="ghost">Finished</button>
+        <button id="tabCancelled" class="ghost">Cancelled</button>
       </div>
       <p class="hint" id="savedEmpty">No bookings saved on this device yet.</p>
       <ul id="savedList" class="saved"></ul>
@@ -262,7 +266,7 @@ const OLD_FACILITIES = [
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
 ];
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate',
-  'secrefunded', 'booked'];
+  'secrefunded', 'booked', 'cancelled', 'cancelreason'];
 function isoToday() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -366,7 +370,7 @@ function buildSvg(f) {
   if (f.tagline) s.push(text(400, 164, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
 
   s.push('<g transform="translate(0,-26)">');
-  s.push(text(400, 254, 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
+  s.push(text(400, 254, f.cancelled ? 'BOOKING CANCELLED' : 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
   s.push(text(400, 278, 'Issued ' + fmtDate(new Date()), { size: 12, fill: MUTED, anchor: 'middle' }));
 
   // Customer
@@ -416,7 +420,13 @@ function buildSvg(f) {
 
   y -= 8;
   s.push('<rect x="80" y="' + y + '" width="640" height="70" rx="6" fill="' + GREEN + '"/>');
-  if (f.balance > 0) {
+  if (f.cancelled) {
+    s.push(text(400, y + 45, 'CANCELLED', { size: 18, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
+    if (f.cancelreason) {
+      const reason = f.cancelreason.length > 80 ? f.cancelreason.slice(0, 79) + '…' : f.cancelreason;
+      s.push(text(400, y + 100, 'Reason: ' + reason, { size: 14, fill: MUTED, anchor: 'middle' }));
+    }
+  } else if (f.balance > 0) {
     s.push(text(108, y + 42, 'BALANCE TO BE PAID', { size: 14, fill: PAPER, spacing: 3 }));
     s.push(text(692, y + 46, rupees(f.balance), { font: SERIF, size: 30, fill: GOLD_LIGHT, anchor: 'end' }));
   } else if (f.balance < 0) {
@@ -427,7 +437,7 @@ function buildSvg(f) {
   }
 
   // Payment
-  if (f.balance > 0) {
+  if (f.balance > 0 && !f.cancelled) {
     y += 104;
     s.push(text(400, y + 4, 'PAYMENT', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
     s.push('<line x1="100" y1="' + y + '" x2="340" y2="' + y + '" stroke="' + RULE + '"/>');
@@ -464,7 +474,8 @@ function buildSvg(f) {
     facLines = [items.slice(0, best).join('  ·  '), items.slice(best).join('  ·  ')];
   }
   const two = facLines.length === 2;
-  if (f.facilities) {
+  // A cancelled booking drops the notes about using the hall
+  if (f.facilities && !f.cancelled) {
     const hy = two ? 960 : 972;
     s.push(text(400, hy, 'AVAILABLE AT THE HALL', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
     s.push('<line x1="100" y1="' + (hy - 4) + '" x2="255" y2="' + (hy - 4) + '" stroke="' + RULE + '"/>');
@@ -476,17 +487,18 @@ function buildSvg(f) {
       'Lights, music, decoration and any extra requirements are to be sourced from outside by the customer.',
       { size: 12.5, fill: MUTED, anchor: 'middle' }));
   }
-  s.push(text(400, two ? 1041 : 1038, 'For events with more than 200 guests, please collect the Green Protocol Certificate from the Kottuvally Panchayat.',
+  if (!f.cancelled) s.push(text(400, two ? 1041 : 1038, 'For events with more than 200 guests, please collect the Green Protocol Certificate from the Kottuvally Panchayat.',
     { size: 12.5, anchor: 'middle' }));
 
   // Footer
-  if (f.deposit) {
+  if (f.deposit && (f.secrefunded || !f.cancelled)) {
     s.push(text(400, 1063, f.secrefunded
       ? 'The security deposit of ' + rupees(f.deposit) + ' has been refunded.'
       : 'The security deposit will be refunded after the function, subject to no damages.',
       { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
   }
-  s.push(text(400, 1087, 'Thank you for choosing us. We look forward to hosting your event.',
+  s.push(text(400, 1087, f.cancelled ? 'Thank you. We hope to host you another time.'
+    : 'Thank you for choosing us. We look forward to hosting your event.',
     { font: SERIF, size: 16, fill: GREEN, anchor: 'middle', italic: true }));
   s.push('</svg>');
   return s.join('');
@@ -514,7 +526,7 @@ function plainText(f) {
     'Advance - ' + n(f.advance),
     ('Phn No. - ' + f.phone).trim(),
     'Balance Amt - ' + withDeposit(f.rent - f.discount - f.advance),
-  ].join('\n');
+  ].concat(f.cancelled ? ['Cancelled' + (f.cancelreason ? ' - ' + f.cancelreason : '')] : []).join('\n');
 }
 
 function fileName(f) {
@@ -529,7 +541,8 @@ function render() {
   $('textOut').value = plainText(f);
   $('unsaved').hidden = !unsavedChanges();
   showClash();
-  $('dueOut').textContent = f.paybyObj && f.balance > 0
+  $('reasonWrap').hidden = !f.cancelled;
+  $('dueOut').textContent = f.paybyObj && f.balance > 0 && !f.cancelled
     ? 'Balance due on or before ' + fmtDate(f.paybyObj) + (f.paybyToday ? ' (today, as the event is less than 2 days away)' : ' (2 days before the event)') : '';
   document.title = fileName(f);
 }
@@ -703,7 +716,8 @@ function minutes(t) {
 }
 function showClash() {
   const date = $('date').value, from = $('from').value, to = $('to').value;
-  const sameDay = date ? loadBookings().filter(b => b.id !== currentId && b.date === date) : [];
+  const sameDay = date && !$('cancelled').checked
+    ? loadBookings().filter(b => b.id !== currentId && b.date === date && b.cancelled !== 'yes') : [];
   let serious = false;
   const lines = sameDay.map(b => {
     const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
@@ -738,15 +752,18 @@ function unsavedChanges() {
 
 function renderSaved() {
   // Upcoming: today onwards (and anything undated). Finished: before today. Both earliest first.
+  // A cancelled event leaves both and is listed under Cancelled.
   const all = loadBookings();
   const now = new Date();
   const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' +
     String(now.getDate()).padStart(2, '0');
   const order = b => (b.date || '9999') + ' ' + (b.from || '');
   const byDate = (a, b) => order(a).localeCompare(order(b));
-  const upcoming = all.filter(b => !b.date || b.date >= today).sort(byDate);
-  const finished = all.filter(b => b.date && b.date < today).sort(byDate);
-  const list = savedView === 'finished' ? finished : upcoming;
+  const live = all.filter(b => b.cancelled !== 'yes');
+  const upcoming = live.filter(b => !b.date || b.date >= today).sort(byDate);
+  const finished = live.filter(b => b.date && b.date < today).sort(byDate);
+  const cancelled = all.filter(b => b.cancelled === 'yes').sort(byDate);
+  const list = savedView === 'finished' ? finished : savedView === 'cancelled' ? cancelled : upcoming;
   const ul = $('savedList');
   ul.textContent = '';
   list.forEach(b => {
@@ -760,9 +777,11 @@ function renderSaved() {
       (parseFloat(b.advance) || 0) -
       (parseFloat(b.balpaid) || 0);
     const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
-    small.textContent = [fmtDate(parseDate(b.date)), when, b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
+    small.textContent = [fmtDate(parseDate(b.date)), when, b.event,
+      b.cancelled === 'yes' ? 'Cancelled' + (b.cancelreason ? ': ' + b.cancelreason : '')
+        : balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
       !(parseFloat(b.deposit) > 0) ? '' : b.secrefunded === 'yes' ? 'Security refunded'
-        : b.date && b.date < today ? 'Security not refunded' : '',
+        : b.cancelled !== 'yes' && b.date && b.date < today ? 'Security not refunded' : '',
       syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
@@ -784,8 +803,11 @@ function renderSaved() {
   $('tabFinished').textContent = 'Finished (' + finished.length + ')';
   $('tabUpcoming').className = savedView === 'upcoming' ? '' : 'ghost';
   $('tabFinished').className = savedView === 'finished' ? '' : 'ghost';
+  $('tabCancelled').textContent = 'Cancelled (' + cancelled.length + ')';
+  $('tabCancelled').className = savedView === 'cancelled' ? '' : 'ghost';
   $('savedEmpty').textContent = !all.length ? 'No bookings saved on this device yet.'
-    : savedView === 'finished' ? 'No finished events yet.' : 'No upcoming events.';
+    : savedView === 'finished' ? 'No finished events yet.'
+      : savedView === 'cancelled' ? 'No cancelled events.' : 'No upcoming events.';
   $('savedEmpty').hidden = list.length > 0;
   $('saveBooking').textContent = currentId ? 'Save changes' : 'Save booking';
   $('syncNow').hidden = !syncUrl();
@@ -863,6 +885,7 @@ $('balpaid').addEventListener('input', () => {
 
 $('tabUpcoming').addEventListener('click', () => { savedView = 'upcoming'; renderSaved(); });
 $('tabFinished').addEventListener('click', () => { savedView = 'finished'; renderSaved(); });
+$('tabCancelled').addEventListener('click', () => { savedView = 'cancelled'; renderSaved(); });
 $('syncNow').addEventListener('click', syncBookings);
 // Keep this device's copy fresh, so a booking is never opened and saved from an out-of-date copy
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncBookings(); });
