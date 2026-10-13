@@ -115,6 +115,7 @@
   .saved button { padding: 5px 10px; font-size: 13px; }
   .tabs { display: flex; gap: 8px; margin-top: 10px; }
   .tabs button { flex: 1; padding: 7px 10px; font-size: 14px; }
+  .warn { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: #9a4a00; }
   .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
   .preview svg {
     display: block;
@@ -170,6 +171,7 @@
       <button id="saveBooking" class="ghost">Save booking</button>
       <button id="reset" class="ghost">New receipt</button>
     </div>
+    <p class="warn" id="unsaved" hidden>Changes to this booking are not saved yet. Press "Save changes".</p>
 
     <div class="copy">
       <div class="copy-head"><span>Booking details as text</span><button id="copyText" class="ghost">Copy</button></div>
@@ -490,6 +492,7 @@ function render() {
   $('preview').innerHTML = buildSvg(f);
   $('balanceOut').textContent = rupees(f.balance);
   $('textOut').value = plainText(f);
+  $('unsaved').hidden = !unsavedChanges();
   $('dueOut').textContent = f.paybyObj && f.balance > 0
     ? 'Balance due on or before ' + fmtDate(f.paybyObj) + (f.paybyToday ? ' (today, as the event is less than 2 days away)' : ' (2 days before the event)') : '';
   document.title = fileName(f);
@@ -627,6 +630,12 @@ function storeBookings(list) {
   try { localStorage.setItem(BOOKINGS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; }
 }
 
+// True when the open booking's form no longer matches its saved copy
+function unsavedChanges() {
+  const b = currentId && loadBookings().find(x => x.id === currentId);
+  return !!b && FORM_IDS.some(id => $(id).value.trim() !== (b[id] != null ? String(b[id]) : ''));
+}
+
 function renderSaved() {
   // Upcoming: today onwards (and anything undated). Finished: before today. Both earliest first.
   const all = loadBookings();
@@ -678,6 +687,7 @@ function renderSaved() {
   $('savedEmpty').hidden = list.length > 0;
   $('saveBooking').textContent = currentId ? 'Save changes' : 'Save booking';
   $('syncNow').hidden = !syncUrl();
+  $('unsaved').hidden = !unsavedChanges();
 }
 
 function openBooking(b) {
