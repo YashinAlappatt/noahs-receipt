@@ -113,6 +113,8 @@
   .saved small { display: block; font-weight: normal; color: var(--muted); font-size: 12px; }
   .saved .btns { display: flex; gap: 6px; flex-shrink: 0; }
   .saved button { padding: 5px 10px; font-size: 13px; }
+  .tabs { display: flex; gap: 8px; margin-top: 10px; }
+  .tabs button { flex: 1; padding: 7px 10px; font-size: 14px; }
   .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
   .preview svg {
     display: block;
@@ -176,6 +178,10 @@
     <div class="copy">
       <div class="copy-head"><span id="savedTitle">Saved bookings</span><button id="syncNow" class="ghost" hidden>Refresh</button></div>
       <p class="hint" id="syncStatus" hidden></p>
+      <div class="tabs">
+        <button id="tabUpcoming">Upcoming</button>
+        <button id="tabFinished" class="ghost">Finished</button>
+      </div>
       <p class="hint" id="savedEmpty">No bookings saved on this device yet.</p>
       <ul id="savedList" class="saved"></ul>
     </div>
@@ -239,6 +245,7 @@ const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 const $ = id => document.getElementById(id);
 let qrData = '';
 let currentId = null;
+let savedView = 'upcoming';
 
 function load(key) {
   try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -612,7 +619,16 @@ function storeBookings(list) {
 }
 
 function renderSaved() {
-  const list = loadBookings().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  // Upcoming: today onwards (and anything undated). Finished: before today. Both earliest first.
+  const all = loadBookings();
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0');
+  const order = b => (b.date || '9999') + ' ' + (b.from || '');
+  const byDate = (a, b) => order(a).localeCompare(order(b));
+  const upcoming = all.filter(b => !b.date || b.date >= today).sort(byDate);
+  const finished = all.filter(b => b.date && b.date < today).sort(byDate);
+  const list = savedView === 'finished' ? finished : upcoming;
   const ul = $('savedList');
   ul.textContent = '';
   list.forEach(b => {
@@ -624,7 +640,8 @@ function renderSaved() {
     const small = document.createElement('small');
     const balance = (parseFloat(b.rent) || 0) + (parseFloat(b.deposit) || 0) - (parseFloat(b.advance) || 0) -
       (parseFloat(b.balpaid) || 0);
-    small.textContent = [fmtDate(parseDate(b.date)), b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
+    const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
+    small.textContent = [fmtDate(parseDate(b.date)), when, b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
       syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
@@ -641,7 +658,13 @@ function renderSaved() {
     li.append(who, btns);
     ul.appendChild(li);
   });
-  $('savedTitle').textContent = 'Saved bookings' + (list.length ? ' (' + list.length + ')' : '');
+  $('savedTitle').textContent = 'Saved bookings' + (all.length ? ' (' + all.length + ')' : '');
+  $('tabUpcoming').textContent = 'Upcoming (' + upcoming.length + ')';
+  $('tabFinished').textContent = 'Finished (' + finished.length + ')';
+  $('tabUpcoming').className = savedView === 'upcoming' ? '' : 'ghost';
+  $('tabFinished').className = savedView === 'finished' ? '' : 'ghost';
+  $('savedEmpty').textContent = !all.length ? 'No bookings saved on this device yet.'
+    : savedView === 'finished' ? 'No finished events yet.' : 'No upcoming events.';
   $('savedEmpty').hidden = list.length > 0;
   $('saveBooking').textContent = currentId ? 'Save changes' : 'Save booking';
   $('syncNow').hidden = !syncUrl();
@@ -701,6 +724,8 @@ $('balpaid').addEventListener('input', () => {
   }
 });
 
+$('tabUpcoming').addEventListener('click', () => { savedView = 'upcoming'; renderSaved(); });
+$('tabFinished').addEventListener('click', () => { savedView = 'finished'; renderSaved(); });
 $('syncNow').addEventListener('click', syncBookings);
 $('syncUrl').addEventListener('change', syncBookings);
 
