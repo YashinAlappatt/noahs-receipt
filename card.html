@@ -115,7 +115,7 @@ const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
-const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV', INSTAGRAM = '@noahsgreensquare';
+const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV', INSTAGRAM = '@noahsgreensquare', PHONE = '+91 99950 81304';
 const BOOKINGS_KEY = 'ngs-receipt-bookings';
 
 const $ = id => document.getElementById(id);
@@ -251,30 +251,34 @@ function layout(message, size) {
   return { items: items, height: y };
 }
 
-// Where to find the hall online, along the bottom: the Google mark with the listing name,
-// and the Instagram mark with the handle. Every card has it, including a memorial card, whose
+// Where to find the hall, along the bottom: the Google mark with the listing name, the Instagram
+// mark with the handle, and a phone mark with the number. Every card has it, including a memorial card, whose
 // message still asks for no review and no follow.
 function findUs() {
-  const size = 15, icon = 20, gap = 8, between = 44, y = 934;
+  const size = 15, icon = 20, gap = 8, between = 34, y = 934;
+  const marks = [
+    ['<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>' +
+      '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>' +
+      '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>' +
+      '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>',
+      48, VENUE],
+    ['<g fill="none" stroke="url(#ig)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="6"/><circle cx="12" cy="12" r="4.6"/>' +
+      '<circle cx="17.6" cy="6.4" r="1.2" fill="url(#ig)" stroke="none"/></g>', 24, INSTAGRAM],
+    ['<path fill="' + GREEN + '" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>',
+      24, PHONE],
+  ];
   measure.font = size + 'px ' + SANS;
-  const w1 = measure.measureText(VENUE).width, w2 = measure.measureText(INSTAGRAM).width;
-  let x = (W - (icon + gap + w1 + between + icon + gap + w2)) / 2;
-  const label = (tx, str) => '<text x="' + tx + '" y="' + (y + 5) + '" font-family="' + SANS + '" font-size="' + size +
-    '" fill="' + INK + '">' + esc(str) + '</text>';
-  let out = '<line x1="250" y1="900" x2="550" y2="900" stroke="' + GOLD + '" stroke-width="0.5"/>';
-  out += '<g transform="translate(' + x + ',' + (y - icon / 2) + ') scale(' + icon / 48 + ')">' +
-    '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>' +
-    '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>' +
-    '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>' +
-    '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></g>';
-  out += label(x + icon + gap, VENUE);
-  x += icon + gap + w1 + between;
-  out += '<defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9ce34"/>' +
-    '<stop offset="0.5" stop-color="#ee2a7b"/><stop offset="1" stop-color="#6228d7"/></linearGradient></defs>' +
-    '<g transform="translate(' + x + ',' + (y - icon / 2) + ') scale(' + icon / 24 + ')" fill="none" stroke="url(#ig)" stroke-width="2">' +
-    '<rect x="2" y="2" width="20" height="20" rx="6"/><circle cx="12" cy="12" r="4.6"/>' +
-    '<circle cx="17.6" cy="6.4" r="1.2" fill="url(#ig)" stroke="none"/></g>';
-  out += label(x + icon + gap, INSTAGRAM);
+  const widths = marks.map(m => measure.measureText(m[2]).width);
+  let x = (W - widths.reduce((a, w) => a + icon + gap + w, 0) - between * (marks.length - 1)) / 2;
+  let out = '<line x1="250" y1="900" x2="550" y2="900" stroke="' + GOLD + '" stroke-width="0.5"/>' +
+    '<defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9ce34"/>' +
+    '<stop offset="0.5" stop-color="#ee2a7b"/><stop offset="1" stop-color="#6228d7"/></linearGradient></defs>';
+  marks.forEach((m, k) => {
+    out += '<g transform="translate(' + x + ',' + (y - icon / 2) + ') scale(' + icon / m[1] + ')">' + m[0] + '</g>' +
+      '<text x="' + (x + icon + gap) + '" y="' + (y + 5) + '" font-family="' + SANS + '" font-size="' + size + '" fill="' + INK + '">' +
+      esc(m[2]) + '</text>';
+    x += icon + gap + widths[k] + between;
+  });
   return out;
 }
 
