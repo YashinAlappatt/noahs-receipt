@@ -406,13 +406,15 @@ function buildSvg(f) {
     s.push(text(400, 1019, 'Lights, music, decoration and any extra requirements are to be sourced from outside by the customer.',
       { size: 12.5, fill: MUTED, anchor: 'middle' }));
   }
+  s.push(text(400, 1038, 'For more than 200 people, please arrange a Green Protocol Certificate from the Panchayat.',
+    { size: 12.5, anchor: 'middle' }));
 
   // Footer
   if (f.deposit) {
-    s.push(text(400, 1054, 'The security deposit will be refunded after the function, subject to no damages.',
+    s.push(text(400, 1061, 'The security deposit will be refunded after the function, subject to no damages.',
       { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
   }
-  s.push(text(400, 1084, 'Thank you for choosing us. We look forward to hosting your event.',
+  s.push(text(400, 1087, 'Thank you for choosing us. We look forward to hosting your event.',
     { font: SERIF, size: 16, fill: GREEN, anchor: 'middle', italic: true }));
   s.push('</svg>');
   return s.join('');
