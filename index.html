@@ -124,10 +124,10 @@
       <div><label for="to">Time to</label><input id="to" type="time" step="900"></div>
       <div><label for="rent">Total Rent (₹)</label><input id="rent" type="number" min="0" inputmode="numeric"></div>
       <div><label for="deposit">Security Amount (₹)</label><input id="deposit" type="number" min="0" inputmode="numeric" value="1000"></div>
-      <div><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
-      <div><label for="payby">Balance due on or before</label><input id="payby" type="date"></div>
+      <div class="full"><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
     </div>
     <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
+    <p class="hint" id="dueOut"></p>
 
     <div class="actions">
       <button id="savePng">Save as photo</button>
@@ -175,12 +175,11 @@ const SETTING_DEFAULTS = {
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
 };
-const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'payby'];
+const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 
 const $ = id => document.getElementById(id);
 let qrData = '';
-let paybyEdited = false;
 
 function load(key) {
   try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -200,9 +199,6 @@ function parseDate(v) {
 }
 function fmtDate(d) {
   return d ? String(d.getDate()).padStart(2, '0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() : '';
-}
-function isoDate(d) {
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function fmtTime(v) {
   const m = /^(\d{2}):(\d{2})/.exec(v || '');
@@ -226,7 +222,8 @@ function readForm() {
   f.total = f.rent + f.deposit;
   f.balance = f.total - f.advance;
   f.dateObj = parseDate(f.date);
-  f.paybyObj = parseDate(f.payby);
+  // Balance is due two days before the event
+  f.paybyObj = f.dateObj ? new Date(f.dateObj.getFullYear(), f.dateObj.getMonth(), f.dateObj.getDate() - 2) : null;
   return f;
 }
 
@@ -354,6 +351,8 @@ function render() {
   const f = readForm();
   $('preview').innerHTML = buildSvg(f);
   $('balanceOut').textContent = rupees(f.balance);
+  $('dueOut').textContent = f.paybyObj && f.balance > 0
+    ? 'Balance due on or before ' + fmtDate(f.paybyObj) + ' (2 days before the event)' : '';
   document.title = fileName(f);
 }
 
@@ -397,19 +396,9 @@ $('share').addEventListener('click', async () => {
 
 $('reset').addEventListener('click', () => {
   FORM_IDS.forEach(id => { $(id).value = id === 'deposit' ? '1000' : ''; });
-  paybyEdited = false;
   render();
   $('name').focus();
 });
-
-$('date').addEventListener('input', () => {
-  const d = parseDate($('date').value);
-  if (d && !paybyEdited) {
-    d.setDate(d.getDate() - 2);
-    $('payby').value = isoDate(d);
-  }
-});
-$('payby').addEventListener('input', () => { paybyEdited = true; });
 
 $('qr').addEventListener('change', e => {
   const file = e.target.files[0];
