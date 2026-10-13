@@ -7,7 +7,7 @@
 
 const SHEET_NAME = 'Bookings';
 const FIELDS = ['id', 'name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit',
-  'advance', 'balpaid', 'baldate', 'secrefunded', 'updated'];
+  'advance', 'balpaid', 'baldate', 'secrefunded', 'booked', 'updated'];
 const MAX_COLUMNS = 40;
 
 function sheet_() {

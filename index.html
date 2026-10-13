@@ -168,6 +168,7 @@
         </datalist>
       </div>
       <div class="full"><label for="date">Date</label><input id="date" type="date"></div>
+      <div class="full"><label for="booked">Booking taken on</label><input id="booked" type="date"></div>
       <div><label for="from">Time from</label><input id="from" type="time" step="900"></div>
       <div><label for="to">Time to</label><input id="to" type="time" step="900"></div>
       <div class="full hint" id="clash" hidden></div>
@@ -261,7 +262,11 @@ const OLD_FACILITIES = [
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
 ];
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate',
-  'secrefunded'];
+  'secrefunded', 'booked'];
+function isoToday() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 // A tick box is stored as 'yes' or '', every other field as its text
 function getField(id) {
   const el = $(id);
@@ -877,7 +882,7 @@ $('copyText').addEventListener('click', async () => {
 });
 
 $('reset').addEventListener('click', () => {
-  FORM_IDS.forEach(id => { setField(id, id === 'deposit' ? '1000' : ''); });
+  FORM_IDS.forEach(id => { setField(id, id === 'deposit' ? '1000' : id === 'booked' ? isoToday() : ''); });
   currentId = null;
   render();
   renderSaved();
@@ -916,6 +921,7 @@ document.addEventListener('input', render);
   if (saved.tagline === 'MINI AUDITORIUM') delete saved.tagline;
   SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
   qrData = load(QR_KEY) || DEFAULT_QR;
+  setField('booked', isoToday());
   if (navigator.canShare) $('share').hidden = false;
   render();
   renderSaved();

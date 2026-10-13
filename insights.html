@@ -143,7 +143,7 @@
 
     <div class="two">
       <div class="card">
-        <h2>Bookings by month</h2>
+        <h2>Events by month</h2>
         <p class="note">Number of events held in each month. Tap a month to list its events below.</p>
         <div class="chart" id="countChart"><div class="plot"></div><div class="tip" hidden></div></div>
       </div>
@@ -156,6 +156,12 @@
         </div>
         <div class="chart" id="moneyChart"><div class="plot"></div><div class="tip" hidden></div></div>
       </div>
+    </div>
+
+    <div class="card" id="takenCard">
+      <h2>Bookings taken by month</h2>
+      <p class="note" id="takenNote"></p>
+      <div class="chart" id="takenChart"><div class="plot"></div><div class="tip" hidden></div></div>
     </div>
 
     <div class="card">
@@ -222,6 +228,7 @@ function enrich(b) {
     securityHeld: b.secrefunded === 'yes' ? 0 : depositIn,
     finished: b.date < todayIso(),
     month: b.date.slice(0, 7),
+    bookedMonth: /^\d{4}-\d{2}-\d{2}$/.test(b.booked || '') ? b.booked.slice(0, 7) : '',
     programme: programme(b.event || ''),
   });
 }
@@ -245,6 +252,19 @@ function group(list, key) {
   const out = {};
   list.forEach(b => { (out[b[key]] = out[b[key]] || []).push(b); });
   return out;
+}
+
+// Every month from the earliest to the latest of `keys` (YYYY-MM), gaps included
+function monthRange(keys) {
+  keys = keys.slice().sort();
+  const months = [];
+  for (let y = +keys[0].slice(0, 4), m = +keys[0].slice(5); ; m++) {
+    if (m > 12) { m = 1; y++; }
+    const key = y + '-' + String(m).padStart(2, '0');
+    months.push(key);
+    if (key >= keys[keys.length - 1]) break;
+  }
+  return months;
 }
 
 function niceStep(raw, whole) {
@@ -287,7 +307,7 @@ function columns(chart, months, series, opts) {
     const cx = ml + band * (i + 0.5), x = cx - bw / 2;
     const live = series.filter(sr => sr.values[i] > 0);
     let base = 0;
-    s += '<g' + (picked && picked !== m ? ' opacity="0.35"' : '') + '>';
+    s += '<g' + (opts.pick && picked && picked !== m ? ' opacity="0.35"' : '') + '>';
     live.forEach((sr, k) => {
       const y0 = y(base), y1 = y(base + sr.values[i]);
       base += sr.values[i];
@@ -319,7 +339,8 @@ function columns(chart, months, series, opts) {
       showTip(chart, opts.tip(months[i], i), e.clientX - box.left, e.clientY - box.top);
     });
     hit.addEventListener('mouseleave', () => hideTip(chart));
-    hit.addEventListener('click', () => { picked = picked === months[i] ? null : months[i]; render(); });
+    if (opts.pick) hit.addEventListener('click', () => { picked = picked === months[i] ? null : months[i]; render(); });
+    else hit.style.cursor = 'default';
   });
 }
 
@@ -337,16 +358,19 @@ function renderTiles(list) {
     t[1] + '</div><div class="sub">' + t[2] + '</div></div>').join('');
 }
 
-function renderHighlights(list, byMonth, byProgramme) {
+function renderHighlights(list, byMonth, byProgramme, byBooked) {
   const names = r => r.names.slice(0, 3).join(', ') + (r.names.length > 3 ? ' and ' + (r.names.length - 3) + ' more' : '');
   const busiest = best(byMonth, g => g.length);
   const richest = best(byMonth, g => sum(g, 'net'));
   const popular = best(byProgramme, g => g.length);
   const earner = best(byProgramme, g => sum(g, 'net'));
   busiest.names = busiest.names.map(m => monthName(m, true));
+  const taken = best(byBooked, g => g.length);
+  taken.names = taken.names.map(m => monthName(m, true));
   richest.names = richest.names.map(m => monthName(m, true));
   const rows = [
-    ['Month with the most bookings', names(busiest) + ' (' + busiest.value + ')'],
+    ['Month with the most events', names(busiest) + ' (' + busiest.value + ')'],
+    ['Month that took the most bookings', taken.names.length ? names(taken) + ' (' + taken.value + ')' : 'No booking dates yet'],
     ['Month with the highest income', names(richest) + ' (' + rupees(richest.value) + ')'],
     ['Most booked programme', names(popular) + ' (' + popular.value + ')'],
     ['Programme earning the most', names(earner) + ' (' + rupees(earner.value) + ')'],
@@ -410,19 +434,14 @@ function render() {
     return;
   }
   const byMonth = group(list, 'month'), byProgramme = group(list, 'programme');
-  const keys = Object.keys(byMonth).sort(), months = [];
-  for (let y = +keys[0].slice(0, 4), m = +keys[0].slice(5); ; m++) {
-    if (m > 12) { m = 1; y++; }
-    const key = y + '-' + String(m).padStart(2, '0');
-    months.push(key);
-    if (key >= keys[keys.length - 1]) break;
-  }
+  const months = monthRange(Object.keys(byMonth));
+  const dated = list.filter(b => b.bookedMonth), byBooked = group(dated, 'bookedMonth');
   const at = m => byMonth[m] || [];
   renderTiles(list);
-  renderHighlights(list, byMonth, byProgramme);
+  renderHighlights(list, byMonth, byProgramme, byBooked);
   renderProgrammes(byProgramme);
   columns($('countChart'), months, [{ color: 'var(--series-1)', values: months.map(m => at(m).length) }], {
-    left: 28, whole: true, label: 'Bookings by month', fmt: v => String(v),
+    left: 28, whole: true, pick: true, label: 'Events by month', fmt: v => String(v),
     tip: m => '<b>' + monthName(m, true) + '</b><div><span>Events</span><span>' + at(m).length + '</span></div>' +
       at(m).slice(0, 6).map(b => '<div><span>' + esc(b.name || '') + '</span></div>').join('') +
       (at(m).length > 6 ? '<div><span>and ' + (at(m).length - 6) + ' more</span></div>' : ''),
@@ -431,12 +450,23 @@ function render() {
     { color: 'var(--series-1)', values: months.map(m => sum(at(m), 'received')) },
     { color: 'var(--series-2)', values: months.map(m => sum(at(m), 'due')) },
   ], {
-    left: 62, label: 'Hall income by month', fmt: rupees,
+    left: 62, pick: true, label: 'Hall income by month', fmt: rupees,
     tip: m => '<b>' + monthName(m, true) + '</b>' +
       '<div><span><i style="background:var(--series-1)"></i>Received</span><span>' + rupees(sum(at(m), 'received')) + '</span></div>' +
       '<div><span><i style="background:var(--series-2)"></i>Still to receive</span><span>' + rupees(sum(at(m), 'due')) + '</span></div>' +
       '<div><span>Total</span><span>' + rupees(sum(at(m), 'net')) + '</span></div>',
   });
+  const takenMonths = dated.length ? monthRange(Object.keys(byBooked)) : [];
+  $('takenCard').hidden = !dated.length;
+  $('takenNote').textContent = 'The month each booking was made.' + (dated.length < list.length
+    ? ' ' + (list.length - dated.length) + ' of ' + list.length + ' events have no booking date and are left out.' : '');
+  if (dated.length) {
+    columns($('takenChart'), takenMonths, [{ color: 'var(--series-1)', values: takenMonths.map(m => (byBooked[m] || []).length) }], {
+      left: 28, whole: true, label: 'Bookings taken by month', fmt: v => String(v),
+      tip: m => '<b>' + monthName(m, true) + '</b><div><span>Bookings taken</span><span>' + (byBooked[m] || []).length + '</span></div>' +
+        '<div><span>Their hall income</span><span>' + rupees(sum(byBooked[m] || [], 'net')) + '</span></div>',
+    });
+  }
   renderTable(list);
 }
 
