@@ -590,11 +590,38 @@ $('share').addEventListener('click', async () => {
 function syncUrl() {
   return $('syncUrl').value.trim();
 }
+// Google's link is sometimes slow or fails outright, so each request is given up on after
+// `timeout` and tried again after each of `waits`. Repeating a save or delete is harmless:
+// a booking is matched by its id, so it lands on the same row.
+const SYNC = { timeout: 20000, waits: [5000, 15000] };
+async function apiOnce(body) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), SYNC.timeout);
+  try {
+    const res = await fetch(syncUrl(), Object.assign({ signal: stop.signal },
+      body ? { method: 'POST', body: JSON.stringify(body) } : {}));
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Shared list error');
+    return data.bookings;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 async function api(body) {
-  const res = await fetch(syncUrl(), body ? { method: 'POST', body: JSON.stringify(body) } : {});
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Shared list error');
-  return data.bookings;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await apiOnce(body);
+    } catch (e) {
+      if (attempt >= SYNC.waits.length) throw e;
+      setSyncStatus('Shared list is slow, trying again…');
+      await new Promise(resolve => setTimeout(resolve, SYNC.waits[attempt]));
+    }
+  }
+}
+function setUpToDate() {
+  const now = new Date();
+  setSyncStatus('Shared list up to date at ' + fmtTime(String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0')) + '.');
 }
 function setSyncStatus(msg) {
   $('syncStatus').textContent = msg;
@@ -613,9 +640,7 @@ async function syncBookings() {
     if (!remote) remote = await api();
     const pending = loadBookings().filter(x => !x.synced && !remote.some(r => r.id === x.id));
     storeBookings(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
-    const now = new Date();
-    setSyncStatus('Shared list up to date at ' + fmtTime(String(now.getHours()).padStart(2, '0') + ':' +
-      String(now.getMinutes()).padStart(2, '0')) + '.');
+    setUpToDate();
     ok = true;
   } catch (e) {
     setSyncStatus('Could not reach the shared list. Showing the copy on this device; press Refresh to try again.');
@@ -708,7 +733,9 @@ async function deleteBooking(b) {
       const remote = await api({ action: 'delete', id: b.id });
       const pending = loadBookings().filter(x => !x.synced && x.id !== b.id);
       storeBookings(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
+      setUpToDate();
     } catch (e) {
+      setSyncStatus('Could not reach the shared list. Showing the copy on this device; press Refresh to try again.');
       alert('Could not delete from the shared list. Check the internet connection and try again.');
       return;
     }
