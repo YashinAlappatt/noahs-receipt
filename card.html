@@ -46,6 +46,9 @@
     color: inherit;
     resize: vertical;
   }
+  .check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 14px; color: var(--ink); }
+  .check[hidden] { display: none; }
+  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
   textarea:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
   button, .back {
@@ -72,6 +75,7 @@
     <div id="editor">
       <label for="message">Message (you can change any wording; the card updates as you type)</label>
       <textarea id="message" rows="17"></textarea>
+      <label class="check" id="remindWrap" hidden><input id="remind" type="checkbox"> <span id="remindLabel"></span></label>
       <div class="actions">
         <button id="savePng">Save as photo</button>
         <button id="share" class="ghost" hidden>Share</button>
@@ -130,6 +134,22 @@ const PERSONAL_LINE = {
 };
 
 // The wording never assumes the person who booked is the one being celebrated
+// Rent still unpaid on the booking. The security deposit is left out: it is not owed once the event is over.
+function balanceDue(b) {
+  const n = v => Math.max(0, parseFloat(v) || 0);
+  return Math.max(n(b.rent) - Math.min(n(b.discount), n(b.rent)) - n(b.advance) - n(b.balpaid), 0);
+}
+function reminderText(b) {
+  return 'A gentle reminder: a balance of ₹' + Math.round(balanceDue(b)).toLocaleString('en-IN') +
+    ' is still pending for this booking. We would be grateful if you could settle it at your convenience.';
+}
+// The reminder sits just above the sign-off, and is only there while the box is ticked
+function withReminder(message, b, on) {
+  const blocks = message.split(/\n\s*\n/).filter(x => x.trim() && x.trim() !== reminderText(b));
+  if (on) blocks.splice(Math.max(blocks.length - 1, 1), 0, reminderText(b));
+  return blocks.join('\n\n');
+}
+
 function defaultMessage(b) {
   const name = (b.name || '').trim(), event = (b.event || '').trim(), kind = eventKind(event), on = longDate(b.date);
   // A booking made through someone ('C/O Ravi (La Corona)') is addressed to that person
@@ -253,7 +273,14 @@ function fileName() {
 }
 
 $('message').addEventListener('input', render);
-$('reset').addEventListener('click', () => { $('message').value = defaultMessage(booking); render(); });
+$('reset').addEventListener('click', () => {
+  $('message').value = withReminder(defaultMessage(booking), booking, $('remind').checked);
+  render();
+});
+$('remind').addEventListener('change', () => {
+  $('message').value = withReminder($('message').value, booking, $('remind').checked);
+  render();
+});
 $('savePng').addEventListener('click', async () => {
   try {
     const a = document.createElement('a');
@@ -298,6 +325,11 @@ $('copy').addEventListener('click', async () => {
     $('hint').textContent = 'The card says the Google link is sent along with it, so paste your link in the same chat.';
   }
   if (navigator.canShare) $('share').hidden = false;
+  if (balanceDue(booking) > 0) {
+    $('remindWrap').hidden = false;
+    $('remindLabel').textContent = 'Add a gentle reminder about the pending balance of ₹' +
+      Math.round(balanceDue(booking)).toLocaleString('en-IN');
+  }
   $('message').value = defaultMessage(booking);
   render();
 })();
