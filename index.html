@@ -84,6 +84,21 @@
   details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
   summary { cursor: pointer; color: var(--green); font-size: 14px; }
   details .grid { margin-top: 12px; }
+  textarea {
+    width: 100%;
+    margin-top: 6px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    color: inherit;
+    background: var(--paper);
+    resize: vertical;
+  }
+  .copy { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .copy-head { display: flex; justify-content: space-between; align-items: center; }
+  .copy-head span { font-size: 14px; color: var(--green); }
+  .copy-head button { padding: 6px 12px; }
   .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
   .preview svg {
     display: block;
@@ -136,6 +151,11 @@
       <button id="reset" class="ghost">New receipt</button>
     </div>
     <p class="hint">For PDF, choose "Save as PDF" as the printer in the window that opens.</p>
+
+    <div class="copy">
+      <div class="copy-head"><span>Booking details as text</span><button id="copyText" class="ghost">Copy</button></div>
+      <textarea id="textOut" rows="9" readonly></textarea>
+    </div>
 
     <details>
       <summary>Venue &amp; payment details</summary>
@@ -345,6 +365,27 @@ function buildSvg(f) {
   return s.join('');
 }
 
+// Plain-text summary for pasting elsewhere. Balance here is rent minus advance, without the security amount.
+function plainText(f) {
+  const n = v => Math.round(v).toLocaleString('en-IN');
+  const date = f.dateObj
+    ? MONTHS[f.dateObj.getMonth()] + ' ' + String(f.dateObj.getDate()).padStart(2, '0') + ' ' + f.dateObj.getFullYear() +
+      ', ' + DAYS[f.dateObj.getDay()]
+    : '';
+  const time = [fmtTime(f.from), fmtTime(f.to)].filter(Boolean).map(t => t.replace(' ', '')).join(' to ');
+  return [
+    f.name,
+    f.place,
+    f.event,
+    date,
+    time,
+    'Total Rent - ' + n(f.rent),
+    'Advance - ' + n(f.advance),
+    ('Phn No. - ' + f.phone).trim(),
+    'Balance Amt - ' + n(f.rent - f.advance),
+  ].join('\n');
+}
+
 function fileName(f) {
   const parts = ['Booking', f.name, fmtDate(f.dateObj)].filter(Boolean);
   return parts.join(' - ').replace(/[\\/:*?"<>|]/g, '');
@@ -354,6 +395,7 @@ function render() {
   const f = readForm();
   $('preview').innerHTML = buildSvg(f);
   $('balanceOut').textContent = rupees(f.balance);
+  $('textOut').value = plainText(f);
   $('dueOut').textContent = f.paybyObj && f.balance > 0
     ? 'Balance due on or before ' + fmtDate(f.paybyObj) + (f.paybyToday ? ' (today, as the event is less than 2 days away)' : ' (2 days before the event)') : '';
   document.title = fileName(f);
@@ -395,6 +437,18 @@ $('share').addEventListener('click', async () => {
     if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
     else alert('Sharing a picture is not supported here. Use "Save as photo" instead.');
   } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
+});
+
+$('copyText').addEventListener('click', async () => {
+  const box = $('textOut'), btn = $('copyText');
+  try {
+    await navigator.clipboard.writeText(box.value);
+  } catch (e) {
+    box.select();
+    document.execCommand('copy');
+  }
+  btn.textContent = 'Copied';
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
 });
 
 $('reset').addEventListener('click', () => {
