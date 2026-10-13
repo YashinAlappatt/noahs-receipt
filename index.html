@@ -173,7 +173,8 @@
     </div>
 
     <div class="copy">
-      <div class="copy-head"><span id="savedTitle">Saved bookings</span></div>
+      <div class="copy-head"><span id="savedTitle">Saved bookings</span><button id="syncNow" class="ghost" hidden>Refresh</button></div>
+      <p class="hint" id="syncStatus" hidden></p>
       <p class="hint" id="savedEmpty">No bookings saved on this device yet.</p>
       <ul id="savedList" class="saved"></ul>
     </div>
@@ -186,6 +187,11 @@
         <div><label for="gpay">GPay number</label><input id="gpay"></div>
         <div><label for="bank">Banking name</label><input id="bank"></div>
         <div class="full"><label for="facilities">Available at the hall</label><input id="facilities"></div>
+        <div class="full">
+          <label for="syncUrl">Shared bookings link (Google Sheet)</label>
+          <input id="syncUrl" type="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec">
+          <p class="hint">Paste the same link on every device to share one bookings list. Keep the link private.</p>
+        </div>
         <div class="full">
           <label for="qr">Use a different payment QR picture</label>
           <input id="qr" type="file" accept="image/*">
@@ -218,6 +224,7 @@ const SETTING_DEFAULTS = {
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
   facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables',
+  syncUrl: '',
 };
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
@@ -478,6 +485,47 @@ $('share').addEventListener('click', async () => {
   } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
 });
 
+// Shared list: when a Google Sheet link is set, bookings are kept there and this device holds a copy.
+// A booking without `synced` has not reached the sheet yet and is sent on the next sync.
+function syncUrl() {
+  return $('syncUrl').value.trim();
+}
+async function api(body) {
+  const res = await fetch(syncUrl(), body ? { method: 'POST', body: JSON.stringify(body) } : {});
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Shared list error');
+  return data.bookings;
+}
+function setSyncStatus(msg) {
+  $('syncStatus').textContent = msg;
+  $('syncStatus').hidden = !msg;
+}
+let syncing = false;
+async function syncBookings() {
+  if (!syncUrl()) { setSyncStatus(''); renderSaved(); return; }
+  if (syncing) return;
+  syncing = true;
+  setSyncStatus('Updating the shared list…');
+  let ok = false;
+  try {
+    let remote = null;
+    for (const b of loadBookings().filter(x => !x.synced)) remote = await api({ action: 'save', booking: b });
+    if (!remote) remote = await api();
+    const pending = loadBookings().filter(x => !x.synced && !remote.some(r => r.id === x.id));
+    storeBookings(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
+    const now = new Date();
+    setSyncStatus('Shared list up to date at ' + fmtTime(String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0')) + '.');
+    ok = true;
+  } catch (e) {
+    setSyncStatus('Could not reach the shared list. Showing the copy on this device; press Refresh to try again.');
+  } finally {
+    syncing = false;
+    renderSaved();
+  }
+  if (ok && loadBookings().some(x => !x.synced)) syncBookings();
+}
+
 function loadBookings() {
   try { return JSON.parse(load(BOOKINGS_KEY)) || []; } catch (e) { return []; }
 }
@@ -497,7 +545,8 @@ function renderSaved() {
     who.textContent = b.name || 'No name';
     const small = document.createElement('small');
     const balance = (parseFloat(b.rent) || 0) + (parseFloat(b.deposit) || 0) - (parseFloat(b.advance) || 0);
-    small.textContent = [fmtDate(parseDate(b.date)), b.event, 'Balance ' + rupees(balance)].filter(Boolean).join(' · ');
+    small.textContent = [fmtDate(parseDate(b.date)), b.event, 'Balance ' + rupees(balance),
+      syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
     btns.className = 'btns';
@@ -516,6 +565,7 @@ function renderSaved() {
   $('savedTitle').textContent = 'Saved bookings' + (list.length ? ' (' + list.length + ')' : '');
   $('savedEmpty').hidden = list.length > 0;
   $('saveBooking').textContent = currentId ? 'Save changes' : 'Save booking';
+  $('syncNow').hidden = !syncUrl();
 }
 
 function openBooking(b) {
@@ -526,9 +576,21 @@ function openBooking(b) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function deleteBooking(b) {
+async function deleteBooking(b) {
   if (!confirm('Delete the saved booking for ' + (b.name || 'this customer') + '? This cannot be undone.')) return;
-  if (!storeBookings(loadBookings().filter(x => x.id !== b.id))) { alert('Could not delete on this device.'); return; }
+  if (syncUrl() && b.synced) {
+    try {
+      const remote = await api({ action: 'delete', id: b.id });
+      const pending = loadBookings().filter(x => !x.synced && x.id !== b.id);
+      storeBookings(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
+    } catch (e) {
+      alert('Could not delete from the shared list. Check the internet connection and try again.');
+      return;
+    }
+  } else if (!storeBookings(loadBookings().filter(x => x.id !== b.id))) {
+    alert('Could not delete on this device.');
+    return;
+  }
   if (currentId === b.id) currentId = null;
   renderSaved();
 }
@@ -548,7 +610,11 @@ $('saveBooking').addEventListener('click', () => {
   renderSaved();
   $('saveBooking').textContent = 'Saved';
   setTimeout(renderSaved, 1500);
+  syncBookings();
 });
+
+$('syncNow').addEventListener('click', syncBookings);
+$('syncUrl').addEventListener('change', syncBookings);
 
 $('copyText').addEventListener('click', async () => {
   const box = $('textOut'), btn = $('copyText');
@@ -602,6 +668,7 @@ document.addEventListener('input', render);
   if (navigator.canShare) $('share').hidden = false;
   render();
   renderSaved();
+  syncBookings();
 })();
 </script>
 </body>
