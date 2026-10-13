@@ -46,6 +46,7 @@
   }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
   .head h1 { margin: 0; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .insights {
     padding: 7px 14px;
     border: 1px solid var(--green);
@@ -165,7 +166,10 @@
   <div class="panel">
     <div class="head">
       <h1>Booking Receipt</h1>
-      <a class="insights" href="insights.html" target="_blank" rel="noopener">Insights</a>
+      <span class="links">
+        <a class="insights" href="ledger.html" target="_blank" rel="noopener">Expenses</a>
+        <a class="insights" href="insights.html" target="_blank" rel="noopener">Insights</a>
+      </span>
     </div>
     <div class="grid">
       <div class="full"><label for="name">Name</label><input id="name" autocomplete="off"></div>

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Expenses - Noah's Green Square</title>
+<style>
+  :root {
+    --green: #1f3d2b;
+    --gold: #b08d57;
+    --paper: #fbf8f1;
+    --ink: #26302a;
+    --muted: #6f776f;
+    --line: #dcd6c6;
+    --bg: #eef0ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+  }
+  header { background: var(--green); color: #fbf8f1; padding: 18px 16px; }
+  header .in { max-width: 1180px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: normal; font-size: 22px; letter-spacing: 2px; }
+  header a { color: #e7cf9a; font-size: 14px; margin-left: 14px; }
+  .wrap {
+    display: grid;
+    grid-template-columns: minmax(300px, 400px) 1fr;
+    gap: 24px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    align-items: start;
+  }
+  .wrap > * { min-width: 0; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  h2 { margin: 0 0 14px; font-family: Georgia, "Times New Roman", serif; font-size: 20px; font-weight: normal; color: var(--green); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    color: inherit;
+    background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
+  button {
+    font: inherit;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: #fff;
+    cursor: pointer;
+  }
+  button.ghost { background: #fff; color: var(--green); }
+  .kind { display: flex; gap: 8px; }
+  .kind button { flex: 1; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .warn { font-size: 13px; font-weight: 600; color: #9a4a00; margin: 8px 0 0; }
+  .top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .top h2 { margin: 0; }
+  .top select { width: auto; }
+  .top button { padding: 7px 12px; font-size: 14px; }
+  .totals { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 12px 0; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+  .totals b { font-family: Georgia, serif; font-size: 18px; color: var(--green); }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; font-weight: 600; color: var(--muted); }
+  td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.d { white-space: nowrap; }
+  td small { display: block; color: var(--muted); font-size: 12px; }
+  td .row { display: flex; gap: 6px; justify-content: flex-end; }
+  td button { padding: 5px 10px; font-size: 13px; }
+  @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="in">
+    <h1>NOAH'S GREEN SQUARE · EXPENSES</h1>
+    <span><a href="./">Receipts</a><a href="insights.html">Insights</a></span>
+  </div>
+</header>
+<div class="wrap">
+  <div class="panel">
+    <h2 id="formTitle">New entry</h2>
+    <div class="grid">
+      <div class="full kind">
+        <button id="kindExpense">Expense</button>
+        <button id="kindIncome" class="ghost">Other income</button>
+      </div>
+      <div class="full"><label for="date">Date</label><input id="date" type="date"></div>
+      <div class="full"><label for="amount">Amount (₹)</label><input id="amount" type="number" min="0" inputmode="numeric"></div>
+      <div class="full"><label for="category">Category</label><select id="category"></select></div>
+      <div class="full"><label for="eventId">For which event (optional)</label><select id="eventId"></select></div>
+      <div class="full"><label for="note">Note (optional)</label><input id="note" autocomplete="off"></div>
+    </div>
+    <div class="actions">
+      <button id="save">Save entry</button>
+      <button id="clear" class="ghost">New entry</button>
+    </div>
+    <p class="hint">Hall rent from bookings is not entered here; it comes from the receipts page by itself.</p>
+  </div>
+
+  <div class="panel">
+    <div class="top">
+      <h2 id="listTitle">Entries</h2>
+      <span><select id="month" aria-label="Month"></select> <button id="refresh" class="ghost" hidden>Refresh</button></span>
+    </div>
+    <p class="hint" id="status" hidden></p>
+    <div class="totals" id="totals"></div>
+    <p class="hint" id="empty" hidden>No entries yet. Add the first one with the form.</p>
+    <div class="tablewrap"><table id="table"></table></div>
+  </div>
+</div>
+
+<script>
+const LEDGER_KEY = 'ngs-ledger';
+const BOOKINGS_KEY = 'ngs-receipt-bookings';
+const SETTINGS_KEY = 'ngs-receipt-settings';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CATEGORIES = {
+  expense: [
+    'Land rent - hall land', 'Land rent - parking land', 'Electricity - hall', 'Electricity - charging station',
+    'Homeguard fee', 'Homeguard travel allowance', 'Cleaning & maintenance staff (event)',
+    'Garden & general maintenance', 'Air freshener refill', 'Water', 'Repairs', 'Cleaning supplies',
+    'Generator fuel & service', 'Waste disposal', 'Taxes, licences & Panchayat fees', 'Insurance',
+    'Internet, phone & CCTV', 'Advertising & printing', 'Bank & UPI charges', 'Other expense',
+  ],
+  income: ['Ather charging station', 'Other income'],
+};
+
+const $ = id => document.getElementById(id);
+let kind = 'expense', currentId = null, month = 'all';
+
+function load(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function readList(key) {
+  try { return JSON.parse(load(key)) || []; } catch (e) { return []; }
+}
+function storeEntries(list) {
+  try { localStorage.setItem(LEDGER_KEY, JSON.stringify(list)); return true; } catch (e) { return false; }
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function rupees(n) {
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+function isoToday() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fmtDate(iso) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8, 10) + ' ' + MONTHS[+iso.slice(5, 7) - 1] + ' ' + iso.slice(0, 4) : '';
+}
+function eventLabel(b) {
+  return [fmtDate(b.date), b.name, b.event].filter(Boolean).join(' · ');
+}
+
+// Shared list: with a Google Sheet link set on the receipts page, entries are kept in the sheet's
+// Ledger tab and this device holds a copy. An entry without `synced` is sent on the next sync.
+function syncUrl() {
+  let settings = {};
+  try { settings = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { settings = {}; }
+  return (settings.syncUrl || '').trim();
+}
+const SYNC = { timeout: 20000, waits: [5000, 15000] };
+async function apiOnce(body) {
+  const stop = new AbortController(), timer = setTimeout(() => stop.abort(), SYNC.timeout);
+  try {
+    const url = syncUrl();
+    const res = await fetch(body ? url : url + (url.indexOf('?') < 0 ? '?' : '&') + 'list=ledger',
+      Object.assign({ signal: stop.signal }, body ? { method: 'POST', body: JSON.stringify(Object.assign({ list: 'ledger' }, body)) } : {}));
+    const data = await res.json();
+    // A script from before the ledger answers with the bookings list, or does not know the request
+    if (data.list !== 'ledger') { const old = new Error('old script'); old.oldScript = true; throw old; }
+    if (!data.ok) throw new Error(data.error || 'Shared list error');
+    return data.rows;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function api(body) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await apiOnce(body);
+    } catch (e) {
+      if (e.oldScript || attempt >= SYNC.waits.length) throw e;
+      setStatus('Shared list is slow, trying again…');
+      await new Promise(resolve => setTimeout(resolve, SYNC.waits[attempt]));
+    }
+  }
+}
+function setStatus(msg, warn) {
+  $('status').textContent = msg;
+  $('status').className = warn ? 'warn' : 'hint';
+  $('status').hidden = !msg;
+}
+function upToDate() {
+  const now = new Date();
+  setStatus('Shared list up to date at ' + (now.getHours() % 12 || 12) + ':' + String(now.getMinutes()).padStart(2, '0') +
+    (now.getHours() < 12 ? ' AM' : ' PM') + '.');
+}
+function failed(e) {
+  setStatus(e.oldScript
+    ? 'Saved on this device only. The Google script needs its one-time update before expenses can be shared between devices.'
+    : 'Could not reach the shared list. Showing the copy on this device; press Refresh to try again.', true);
+}
+let syncing = false;
+async function sync() {
+  $('refresh').hidden = !syncUrl();
+  if (!syncUrl()) { setStatus('Saved on this device only. Paste the shared bookings link on the receipts page to share these too.'); return; }
+  if (syncing) return;
+  syncing = true;
+  setStatus('Updating the shared list…');
+  let ok = false;
+  try {
+    let remote = null;
+    for (const e of readList(LEDGER_KEY).filter(x => !x.synced)) remote = await api({ action: 'save', row: e });
+    if (!remote) remote = await api();
+    const pending = readList(LEDGER_KEY).filter(x => !x.synced && !remote.some(r => r.id === x.id));
+    storeEntries(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
+    upToDate();
+    ok = true;
+  } catch (e) {
+    failed(e);
+  } finally {
+    syncing = false;
+    renderList();
+  }
+  if (ok && readList(LEDGER_KEY).some(x => !x.synced)) sync();
+}
+
+function setKind(k) {
+  kind = k;
+  $('kindExpense').className = k === 'expense' ? '' : 'ghost';
+  $('kindIncome').className = k === 'income' ? '' : 'ghost';
+  $('category').innerHTML = CATEGORIES[k].map(c => '<option>' + esc(c) + '</option>').join('');
+}
+function fillEvents(selectedId) {
+  const list = readList(BOOKINGS_KEY).filter(b => b.date && b.cancelled !== 'yes')
+    .sort((a, b) => b.date.localeCompare(a.date));
+  $('eventId').innerHTML = '<option value="">Not for a particular event</option>' +
+    list.map(b => '<option value="' + esc(b.id) + '"' + (b.id === selectedId ? ' selected' : '') + '>' + esc(eventLabel(b)) + '</option>').join('');
+}
+function clearForm() {
+  currentId = null;
+  setKind('expense');
+  $('date').value = isoToday();
+  $('amount').value = '';
+  $('note').value = '';
+  fillEvents('');
+  $('formTitle').textContent = 'New entry';
+  $('save').textContent = 'Save entry';
+}
+function edit(e) {
+  currentId = e.id;
+  setKind(e.type === 'income' ? 'income' : 'expense');
+  if (CATEGORIES[kind].indexOf(e.category) < 0) $('category').insertAdjacentHTML('beforeend', '<option>' + esc(e.category) + '</option>');
+  $('category').value = e.category;
+  $('date').value = e.date || '';
+  $('amount').value = e.amount || '';
+  $('note').value = e.note || '';
+  fillEvents(e.eventId || '');
+  $('formTitle').textContent = 'Change entry';
+  $('save').textContent = 'Save changes';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderList() {
+  const all = readList(LEDGER_KEY).filter(e => e.date);
+  const months = Array.from(new Set(all.map(e => e.date.slice(0, 7)))).sort().reverse();
+  if (month !== 'all' && months.indexOf(month) < 0) month = 'all';
+  $('month').innerHTML = '<option value="all">All months</option>' + months.map(m => '<option value="' + m + '"' +
+    (m === month ? ' selected' : '') + '>' + MONTHS[+m.slice(5) - 1] + ' ' + m.slice(0, 4) + '</option>').join('');
+  const list = all.filter(e => month === 'all' || e.date.slice(0, 7) === month)
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
+  const total = t => list.filter(e => (e.type === 'income') === (t === 'income')).reduce((a, e) => a + (parseFloat(e.amount) || 0), 0);
+  $('totals').innerHTML = '<span>Expenses <b>' + rupees(total('expense')) + '</b></span><span>Other income <b>' +
+    rupees(total('income')) + '</b></span>';
+  $('listTitle').textContent = 'Entries' + (list.length ? ' (' + list.length + ')' : '');
+  $('empty').hidden = all.length > 0;
+  const events = {};
+  readList(BOOKINGS_KEY).forEach(b => { events[b.id] = b; });
+  const table = $('table');
+  table.innerHTML = list.length ? '<tr><th>Date</th><th>Category</th><th class="n">Amount</th><th></th></tr>' : '';
+  list.forEach(e => {
+    const tr = document.createElement('tr');
+    const ev = events[e.eventId];
+    const detail = [e.type === 'income' ? 'Income' : '', ev ? 'For ' + eventLabel(ev) : '', e.note,
+      syncUrl() && !e.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
+    tr.innerHTML = '<td class="d">' + fmtDate(e.date) + '</td><td>' + esc(e.category || '') +
+      (detail ? '<small>' + esc(detail) + '</small>' : '') + '</td><td class="n">' + (e.type === 'income' ? '+ ' : '') +
+      rupees(parseFloat(e.amount) || 0) + '</td><td><span class="row"></span></td>';
+    const change = document.createElement('button'), del = document.createElement('button');
+    change.className = del.className = 'ghost';
+    change.textContent = 'Edit';
+    del.textContent = 'Delete';
+    change.addEventListener('click', () => edit(e));
+    del.addEventListener('click', () => remove(e));
+    tr.querySelector('.row').append(change, del);
+    table.appendChild(tr);
+  });
+}
+
+async function remove(e) {
+  if (!confirm('Delete this entry (' + (e.category || '') + ', ' + rupees(parseFloat(e.amount) || 0) + ')? This cannot be undone.')) return;
+  if (syncUrl() && e.synced) {
+    try {
+      const remote = await api({ action: 'delete', id: e.id });
+      const pending = readList(LEDGER_KEY).filter(x => !x.synced && x.id !== e.id);
+      storeEntries(remote.map(r => Object.assign(r, { synced: true })).concat(pending));
+      upToDate();
+    } catch (err) {
+      failed(err);
+      alert('Could not delete from the shared list. Check the internet connection and try again.');
+      return;
+    }
+  } else if (!storeEntries(readList(LEDGER_KEY).filter(x => x.id !== e.id))) {
+    alert('Could not delete on this device.');
+    return;
+  }
+  if (currentId === e.id) clearForm();
+  renderList();
+}
+
+$('kindExpense').addEventListener('click', () => setKind('expense'));
+$('kindIncome').addEventListener('click', () => setKind('income'));
+$('clear').addEventListener('click', clearForm);
+$('month').addEventListener('change', () => { month = $('month').value; renderList(); });
+$('refresh').addEventListener('click', sync);
+$('save').addEventListener('click', () => {
+  const amount = parseFloat($('amount').value);
+  if (!$('date').value) { alert('Choose the date.'); return; }
+  if (!(amount > 0)) { alert('Enter the amount.'); $('amount').focus(); return; }
+  const list = readList(LEDGER_KEY);
+  const e = {
+    id: currentId || 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: kind, date: $('date').value, category: $('category').value,
+    amount: String(amount), eventId: $('eventId').value, note: $('note').value.trim(),
+  };
+  const i = list.findIndex(x => x.id === e.id);
+  if (i >= 0) list[i] = e; else list.push(e);
+  if (!storeEntries(list)) { alert('Could not save on this device. The browser may be in private mode or out of space.'); return; }
+  clearForm();
+  renderList();
+  sync();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+
+clearForm();
+renderList();
+sync();
+</script>
+</body>
+</html>

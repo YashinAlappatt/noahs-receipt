@@ -1,22 +1,29 @@
-// Shared bookings list for the Noah's Green Square receipt page.
+// Shared lists for the Noah's Green Square pages: bookings, and the expenses / other income ledger.
 // Paste this into Extensions > Apps Script of a Google Sheet, then deploy it as a web app
-// (Execute as: Me, Who has access: Anyone). The web app link is the key to the list: keep it private.
+// (Execute as: Me, Who has access: Anyone). The web app link is the key to the lists: keep it private.
 //
-// The sheet's first row names the columns. A booking field the sheet has no column for yet
-// gets a new column by itself, so the page can gain fields without this script changing.
+// Each list is one tab of the sheet. A tab's first row names its columns. A field the tab has no
+// column for yet gets a new column by itself, so the pages can gain fields without this script changing.
 
-const SHEET_NAME = 'Bookings';
-const FIELDS = ['id', 'name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit',
-  'advance', 'balpaid', 'baldate', 'secrefunded', 'booked', 'cancelled',
-  'cancelreason', 'keepadvance', 'updated'];
+const LISTS = {
+  bookings: {
+    tab: 'Bookings',
+    fields: ['id', 'name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit',
+      'advance', 'balpaid', 'baldate', 'secrefunded', 'booked', 'cancelled', 'cancelreason', 'keepadvance', 'updated'],
+  },
+  ledger: {
+    tab: 'Ledger',
+    fields: ['id', 'type', 'date', 'category', 'amount', 'eventId', 'note', 'updated'],
+  },
+};
 const MAX_COLUMNS = 40;
 
-function sheet_() {
+function sheet_(key) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sh = ss.getSheetByName(SHEET_NAME);
-  if (!sh) sh = ss.insertSheet(SHEET_NAME);
+  let sh = ss.getSheetByName(LISTS[key].tab);
+  if (!sh) sh = ss.insertSheet(LISTS[key].tab);
   if (sh.getLastRow() === 0) {
-    sh.appendRow(FIELDS);
+    sh.appendRow(LISTS[key].fields);
     sh.setFrozenRows(1);
   }
   return sh;
@@ -48,8 +55,18 @@ function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function doGet() {
-  return json_({ ok: true, bookings: list_(sheet_()) });
+// The answer names the list it holds, and repeats it as `bookings` for pages written before the ledger
+function answer_(key, sh) {
+  const rows = list_(sh);
+  const out = { ok: true, list: key, rows: rows };
+  if (key === 'bookings') out.bookings = rows;
+  return json_(out);
+}
+
+function doGet(e) {
+  const key = (e && e.parameter && e.parameter.list) || 'bookings';
+  if (!LISTS[key]) return json_({ ok: false, error: 'Unknown list' });
+  return answer_(key, sheet_(key));
 }
 
 function doPost(e) {
@@ -57,10 +74,12 @@ function doPost(e) {
   lock.waitLock(20000);
   try {
     const req = JSON.parse(e.postData.contents);
-    const sh = sheet_();
+    const key = req.list || 'bookings';
+    if (!LISTS[key]) return json_({ ok: false, error: 'Unknown list' });
+    const sh = sheet_(key);
     const ids = ids_(sh);
-    if (req.action === 'save' && req.booking && req.booking.id) {
-      const b = req.booking;
+    const b = req.row || req.booking;
+    if (req.action === 'save' && b && b.id) {
       delete b.synced;
       b.updated = new Date().toISOString();
       const head = header_(sh);
@@ -81,7 +100,7 @@ function doPost(e) {
     } else {
       return json_({ ok: false, error: 'Unknown request' });
     }
-    return json_({ ok: true, bookings: list_(sh) });
+    return answer_(key, sh);
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   } finally {

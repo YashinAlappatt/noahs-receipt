@@ -19,6 +19,7 @@
     --line: #dcd6c6;
     --series-1: #2a78d6;   /* received / single series */
     --series-2: #eb6834;   /* still to receive */
+    --series-3: #4a3aa7;   /* expenses */
   }
   * { box-sizing: border-box; }
   body {
@@ -93,6 +94,10 @@
   .hrow { display: grid; grid-template-columns: minmax(90px, 38%) 1fr; gap: 10px; align-items: center; padding: 5px 0; cursor: default; }
   .hrow .hl { font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
   .hrow .ht { display: flex; align-items: center; gap: 8px; }
+  .hrow .hb.spend { background: var(--series-3); }
+  .card h3 { margin: 16px 0 6px; font-size: 14px; font-weight: 600; }
+  .card .tiles { margin-top: 4px; }
+  .card .two > div { min-width: 0; }
   .hrow .hb { height: 16px; min-width: 2px; background: var(--series-1); border-radius: 0 4px 4px 0; }
   .hrow .hv { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .tablewrap { overflow-x: auto; }
@@ -109,7 +114,7 @@
 <header>
   <div class="in">
     <h1>NOAH'S GREEN SQUARE · INSIGHTS</h1>
-    <a href="./">Back to receipts</a>
+    <span><a href="./">Receipts</a> &nbsp; <a href="ledger.html">Expenses</a></span>
   </div>
 </header>
 <main>
@@ -128,6 +133,17 @@
   <div id="content">
    <div id="main">
     <div class="tiles" id="tiles"></div>
+
+    <div class="card" id="ledgerCard">
+      <h2>Expenses and other income</h2>
+      <p class="note">Entered on the <a href="ledger.html">Expenses page</a>. These follow the year chosen above, not the Finished / Upcoming buttons.</p>
+      <div class="tiles" id="ledgerTiles"></div>
+      <p class="note" id="ledgerEmpty">No expenses or other income entered yet.</p>
+      <div class="two" id="ledgerCharts">
+        <div><h3>Expenses by category</h3><div class="chart" id="catChart"><div class="plot"></div><div class="tip" hidden></div></div></div>
+        <div><h3>Expenses by month</h3><div class="chart" id="spendChart"><div class="plot"></div><div class="tip" hidden></div></div></div>
+      </div>
+    </div>
 
     <div class="two">
       <div class="card">
@@ -359,6 +375,62 @@ function columns(chart, months, series, opts) {
   });
 }
 
+// Expenses and other income come from the Expenses page. They follow the year filter only.
+let ledger = [];
+function useLedger(rows) {
+  ledger = rows.filter(e => /^\d{4}-\d{2}-\d{2}$/.test(e.date || ''));
+}
+function signed(n) {
+  return (n < 0 ? '− ' : '') + rupees(Math.abs(n));
+}
+function renderLedger() {
+  const inYear = x => year === 'all' || x.date.slice(0, 4) === year;
+  const rows = ledger.filter(inYear);
+  const spent = rows.filter(e => e.type !== 'income'), earned = rows.filter(e => e.type === 'income');
+  const total = list => list.reduce((a, e) => a + num(e.amount), 0);
+  const received = all.filter(b => b.cancelled !== 'yes' && inYear(b)).reduce((a, b) => a + b.received, 0);
+  const tiles = [
+    ['Expenses', rupees(total(spent)), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
+    ['Other income', rupees(total(earned)), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
+    ['Net so far', signed(received + total(earned) - total(spent)), 'Hall rent received + other income − expenses'],
+  ];
+  $('ledgerTiles').innerHTML = tiles.map(t => '<div class="tile"><div class="label">' + t[0] + '</div><div class="value">' +
+    t[1] + '</div><div class="sub">' + t[2] + '</div></div>').join('');
+  $('ledgerEmpty').hidden = rows.length > 0;
+  $('ledgerCharts').hidden = !spent.length;
+  if (!spent.length) return;
+
+  const byCat = {};
+  spent.forEach(e => { byCat[e.category || 'Other expense'] = (byCat[e.category || 'Other expense'] || 0) + num(e.amount); });
+  let cats = Object.keys(byCat).map(k => ({ name: k, value: byCat[k] })).sort((a, b) => b.value - a.value);
+  if (cats.length > 9) {
+    const rest = cats.slice(8);
+    cats = cats.slice(0, 8).concat({ name: 'Other (' + rest.length + ' categories)', value: rest.reduce((a, c) => a + c.value, 0) });
+  }
+  const chart = $('catChart'), max = cats[0].value, all$ = total(spent);
+  chart.querySelector('.plot').innerHTML = cats.map((c, i) => '<div class="hrow" data-i="' + i + '"><span class="hl">' + esc(c.name) +
+    '</span><span class="ht"><span class="hb spend" style="width:calc((100% - 78px) * ' + (c.value / max) + ')"></span>' +
+    '<span class="hv">' + rupees(c.value) + '</span></span></div>').join('');
+  chart.querySelectorAll('.hrow').forEach(row => {
+    const c = cats[+row.dataset.i];
+    row.addEventListener('mousemove', e => {
+      const box = chart.getBoundingClientRect();
+      showTip(chart, '<b>' + esc(c.name) + '</b><div><span>Spent</span><span>' + rupees(c.value) + '</span></div>' +
+        '<div><span>Share of expenses</span><span>' + Math.round(c.value / all$ * 100) + '%</span></div>',
+        e.clientX - box.left, e.clientY - box.top);
+    });
+    row.addEventListener('mouseleave', () => hideTip(chart));
+  });
+
+  const byMonth = group(spent.map(e => Object.assign({ month: e.date.slice(0, 7), value: num(e.amount) }, e)), 'month');
+  const months = monthRange(Object.keys(byMonth));
+  columns($('spendChart'), months, [{ color: 'var(--series-3)', values: months.map(m => sum(byMonth[m] || [], 'value')) }], {
+    left: 62, label: 'Expenses by month', fmt: rupees,
+    tip: m => '<b>' + monthName(m, true) + '</b><div><span>Expenses</span><span>' + rupees(sum(byMonth[m] || [], 'value')) + '</span></div>' +
+      '<div><span>Entries</span><span>' + (byMonth[m] || []).length + '</span></div>',
+  });
+}
+
 function renderTiles(list) {
   const done = list.filter(b => b.finished).length;
   const tiles = [
@@ -462,6 +534,7 @@ function render() {
   const dated = list.filter(b => b.bookedMonth), byBooked = group(dated, 'bookedMonth');
   const at = m => byMonth[m] || [];
   renderTiles(list);
+  renderLedger();
   renderHighlights(list, byMonth, byProgramme, byBooked);
   renderProgrammes(byProgramme);
   columns($('countChart'), months, [{ color: 'var(--series-1)', values: months.map(m => at(m).length) }], {
@@ -504,6 +577,9 @@ async function refresh() {
   let local = [], settings = {};
   try { local = JSON.parse(load(BOOKINGS_KEY)) || []; } catch (e) { local = []; }
   try { settings = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { settings = {}; }
+  let localLedger = [];
+  try { localLedger = JSON.parse(load('ngs-ledger')) || []; } catch (e) { localLedger = []; }
+  useLedger(localLedger);
   useBookings(local);
   const url = (settings.syncUrl || '').trim();
   if (!url) { $('status').textContent = "Showing this device's saved bookings."; return; }
@@ -514,6 +590,13 @@ async function refresh() {
       const data = await (await fetch(url, { signal: stop.signal })).json();
       if (!data.ok) throw new Error(data.error);
       const unsent = local.filter(b => !b.synced && !data.bookings.some(r => r.id === b.id));
+      try {
+        const led = await (await fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'list=ledger', { signal: stop.signal })).json();
+        // A Google script from before the ledger answers with bookings; then this device's copy stays
+        if (led.ok && led.list === 'ledger') {
+          useLedger(led.rows.concat(localLedger.filter(e => !e.synced && !led.rows.some(r => r.id === e.id))));
+        }
+      } catch (e) { /* keep this device's copy of the ledger */ }
       useBookings(data.bookings.concat(unsent));
       const now = new Date();
       $('status').textContent = 'Shared list, updated ' + (now.getHours() % 12 || 12) + ':' +
