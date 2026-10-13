@@ -81,6 +81,14 @@
   td small { display: block; color: var(--muted); font-size: 12px; }
   td .row { display: flex; gap: 6px; justify-content: flex-end; }
   td button { padding: 5px 10px; font-size: 13px; }
+  .col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
+  .hint.lead { margin: -8px 0 14px; }
+  h2.second { margin-top: 26px; }
+  .prow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .prow > span { min-width: 0; }
+  .prow .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .prow button { padding: 5px 10px; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: default; }
   @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -92,6 +100,7 @@
   </div>
 </header>
 <div class="wrap">
+  <div class="col">
   <div class="panel">
     <h2 id="formTitle">New entry</h2>
     <div class="grid">
@@ -113,6 +122,27 @@
   </div>
 
   <div class="panel">
+    <h2>Regular amounts</h2>
+    <p class="hint lead">Set these once. They are shared with your other devices.</p>
+    <div class="grid">
+      <div class="full"><label for="P-hallrent">Land rent - hall land, per month (₹)</label><input id="P-hallrent" type="number" min="0" inputmode="numeric"></div>
+      <div class="full"><label for="P-parkrent">Land rent - parking land, per month (₹)</label><input id="P-parkrent" type="number" min="0" inputmode="numeric"></div>
+      <div class="full"><label for="P-homeguard">Homeguard fee, per event (₹)</label><input id="P-homeguard" type="number" min="0" inputmode="numeric"></div>
+      <div class="full"><label for="P-cleaning">Cleaning &amp; maintenance staff, per event (₹)</label><input id="P-cleaning" type="number" min="0" inputmode="numeric"></div>
+    </div>
+    <div class="actions"><button id="saveRegular" class="ghost">Save amounts</button></div>
+
+    <h2 class="second">Monthly land rents</h2>
+    <div class="grid">
+      <div class="full"><label for="rentMonth">Month</label><select id="rentMonth"></select></div>
+    </div>
+    <div class="actions"><button id="addRents">Add land rents for this month</button></div>
+    <p class="hint" id="rentNote"></p>
+  </div>
+  </div>
+
+  <div class="col">
+  <div class="panel">
     <div class="top">
       <h2 id="listTitle">Entries</h2>
       <span><select id="month" aria-label="Month"></select> <button id="refresh" class="ghost" hidden>Refresh</button></span>
@@ -121,6 +151,13 @@
     <div class="totals" id="totals"></div>
     <p class="hint" id="empty" hidden>No entries yet. Add the first one with the form.</p>
     <div class="tablewrap"><table id="table"></table></div>
+  </div>
+
+  <div class="panel" id="pendingPanel" hidden>
+    <h2>Finished events: add their costs</h2>
+    <p class="hint lead">One tap adds the regular amount, dated on the event day. Use Hide for an event that needs nothing more.</p>
+    <div id="pending"></div>
+  </div>
   </div>
 </div>
 
@@ -238,9 +275,100 @@ async function sync() {
     failed(e);
   } finally {
     syncing = false;
-    renderList();
+    renderAll();
   }
   if (ok && readList(LEDGER_KEY).some(x => !x.synced)) sync();
+}
+
+// Regular amounts are kept in the ledger as undated rows of type 'preset', so they are shared
+// between devices like any entry and never counted as an expense themselves.
+const PRESETS = [
+  { id: 'P-hallrent', category: 'Land rent - hall land', monthly: true },
+  { id: 'P-parkrent', category: 'Land rent - parking land', monthly: true },
+  { id: 'P-homeguard', category: 'Homeguard fee', short: 'Homeguard', perEvent: true },
+  { id: 'P-cleaning', category: 'Cleaning & maintenance staff (event)', short: 'Cleaning', perEvent: true },
+];
+const HIDDEN_ID = 'P-hidden';
+function newId() {
+  return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+}
+function presetAmount(id) {
+  const row = readList(LEDGER_KEY).find(e => e.id === id);
+  return row ? parseFloat(row.amount) || 0 : 0;
+}
+// Adds or replaces rows on this device, then sends them to the shared list
+function upsert(rows) {
+  const list = readList(LEDGER_KEY);
+  rows.forEach(r => {
+    const i = list.findIndex(x => x.id === r.id);
+    if (i >= 0) list[i] = r; else list.push(r);
+  });
+  if (!storeEntries(list)) { alert('Could not save on this device. The browser may be in private mode or out of space.'); return false; }
+  renderAll();
+  sync();
+  return true;
+}
+function expenseEntries() {
+  return readList(LEDGER_KEY).filter(e => e.date && e.type === 'expense');
+}
+
+function renderRegular() {
+  PRESETS.forEach(p => {
+    if (document.activeElement !== $(p.id)) $(p.id).value = presetAmount(p.id) || '';
+  });
+  if (!$('rentMonth').options.length) {
+    const now = new Date(), opts = [];
+    for (let k = 1; k >= -6; k--) {
+      const d = new Date(now.getFullYear(), now.getMonth() + k, 1);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      opts.push('<option value="' + key + '"' + (k === 0 ? ' selected' : '') + '>' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + '</option>');
+    }
+    $('rentMonth').innerHTML = opts.join('');
+  }
+}
+
+// Finished events still missing a per-event cost, each with one-tap buttons
+function renderPending() {
+  const hiddenRow = readList(LEDGER_KEY).find(e => e.id === HIDDEN_ID);
+  const hidden = hiddenRow && hiddenRow.note ? hiddenRow.note.split(',') : [];
+  const entries = expenseEntries(), today = isoToday();
+  const perEvent = PRESETS.filter(p => p.perEvent);
+  const has = (b, p) => entries.some(e => e.eventId === b.id && e.category === p.category);
+  const events = readList(BOOKINGS_KEY)
+    .filter(b => b.date && b.date < today && b.cancelled !== 'yes' && hidden.indexOf(b.id) < 0 && perEvent.some(p => !has(b, p)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const box = $('pending');
+  box.textContent = '';
+  $('pendingPanel').hidden = !events.length;
+  events.forEach(b => {
+    const row = document.createElement('div'), label = document.createElement('span'), btns = document.createElement('span');
+    row.className = 'prow';
+    btns.className = 'row';
+    label.textContent = eventLabel(b);
+    perEvent.filter(p => !has(b, p)).forEach(p => {
+      const amount = presetAmount(p.id), btn = document.createElement('button');
+      btn.className = 'ghost';
+      btn.textContent = amount ? p.short + ' ' + rupees(amount) : p.short + ' (set amount first)';
+      btn.disabled = !amount;
+      btn.addEventListener('click', () => upsert([{ id: newId(), type: 'expense', date: b.date, category: p.category,
+        amount: String(amount), eventId: b.id, note: '' }]));
+      btns.appendChild(btn);
+    });
+    const hide = document.createElement('button');
+    hide.className = 'ghost';
+    hide.textContent = 'Hide';
+    hide.addEventListener('click', () => upsert([{ id: HIDDEN_ID, type: 'preset', date: '', category: 'Hidden events', amount: '',
+      eventId: '', note: hidden.concat(b.id).join(',') }]));
+    btns.appendChild(hide);
+    row.append(label, btns);
+    box.appendChild(row);
+  });
+}
+
+function renderAll() {
+  renderList();
+  renderRegular();
+  renderPending();
 }
 
 function setKind(k) {
@@ -333,7 +461,7 @@ async function remove(e) {
     return;
   }
   if (currentId === e.id) clearForm();
-  renderList();
+  renderAll();
 }
 
 $('kindExpense').addEventListener('click', () => setKind('expense'));
@@ -347,20 +475,36 @@ $('save').addEventListener('click', () => {
   if (!(amount > 0)) { alert('Enter the amount.'); $('amount').focus(); return; }
   const list = readList(LEDGER_KEY);
   const e = {
-    id: currentId || 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: kind, date: $('date').value, category: $('category').value,
+    id: currentId || newId(), type: kind, date: $('date').value, category: $('category').value,
     amount: String(amount), eventId: $('eventId').value, note: $('note').value.trim(),
   };
   const i = list.findIndex(x => x.id === e.id);
   if (i >= 0) list[i] = e; else list.push(e);
   if (!storeEntries(list)) { alert('Could not save on this device. The browser may be in private mode or out of space.'); return; }
   clearForm();
-  renderList();
+  renderAll();
   sync();
+});
+$('saveRegular').addEventListener('click', () => {
+  const ok = upsert(PRESETS.map(p => ({ id: p.id, type: 'preset', date: '', category: p.category,
+    amount: String(Math.max(0, parseFloat($(p.id).value) || 0)), eventId: '', note: '' })));
+  if (ok) { $('saveRegular').textContent = 'Saved'; setTimeout(() => { $('saveRegular').textContent = 'Save amounts'; }, 1500); }
+});
+// One entry per land, dated the 1st of the month; a land already entered for that month is left alone
+$('addRents').addEventListener('click', () => {
+  const m = $('rentMonth').value, name = $('rentMonth').selectedOptions[0].textContent, entries = expenseEntries();
+  const monthly = PRESETS.filter(p => p.monthly);
+  if (!monthly.some(p => presetAmount(p.id))) { $('rentNote').textContent = 'Set the land rent amounts above first.'; return; }
+  const todo = monthly.filter(p => presetAmount(p.id) && !entries.some(e => e.category === p.category && e.date.slice(0, 7) === m));
+  if (!todo.length) { $('rentNote').textContent = 'Land rents for ' + name + ' are already entered.'; return; }
+  upsert(todo.map(p => ({ id: newId(), type: 'expense', date: m + '-01', category: p.category, amount: String(presetAmount(p.id)),
+    eventId: '', note: 'Monthly rent' })));
+  $('rentNote').textContent = 'Added ' + todo.length + (todo.length === 1 ? ' entry' : ' entries') + ' for ' + name + '.';
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 
 clearForm();
-renderList();
+renderAll();
 sync();
 </script>
 </body>
