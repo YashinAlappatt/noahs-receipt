@@ -164,6 +164,7 @@
         <div class="full"><label for="tagline">Line under the name</label><input id="tagline"></div>
         <div><label for="gpay">GPay number</label><input id="gpay"></div>
         <div><label for="bank">Banking name</label><input id="bank"></div>
+        <div class="full"><label for="facilities">Available at the hall</label><input id="facilities"></div>
         <div class="full">
           <label for="qr">Use a different payment QR picture</label>
           <input id="qr" type="file" accept="image/*">
@@ -194,6 +195,7 @@ const SETTING_DEFAULTS = {
   tagline: 'MINI AUDITORIUM',
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
+  facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables',
 };
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
@@ -273,25 +275,26 @@ function buildSvg(f) {
   s.push('<rect x="28" y="28" width="744" height="1075" fill="none" stroke="' + GOLD + '" stroke-width="0.5"/>');
 
   // Header band
-  s.push('<rect x="40" y="40" width="720" height="176" fill="' + GREEN + '"/>');
+  s.push('<rect x="40" y="40" width="720" height="150" fill="' + GREEN + '"/>');
   const venueSize = f.venue.length > 22 ? 30 : 38;
-  s.push(text(400, 118, f.venue, { font: SERIF, size: venueSize, fill: PAPER, anchor: 'middle', spacing: 5 }));
-  s.push(ornament(148, 90));
-  s.push(text(400, 182, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
+  s.push(text(400, 108, f.venue, { font: SERIF, size: venueSize, fill: PAPER, anchor: 'middle', spacing: 5 }));
+  s.push(ornament(134, 90));
+  s.push(text(400, 164, f.tagline, { size: 13, fill: GOLD_LIGHT, anchor: 'middle', spacing: 6 }));
 
-  s.push(text(400, 264, 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
-  s.push(text(400, 290, 'Issued ' + fmtDate(new Date()), { size: 12, fill: MUTED, anchor: 'middle' }));
+  s.push('<g transform="translate(0,-26)">');
+  s.push(text(400, 254, 'BOOKING CONFIRMATION', { size: 16, fill: GREEN, anchor: 'middle', spacing: 7 }));
+  s.push(text(400, 278, 'Issued ' + fmtDate(new Date()), { size: 12, fill: MUTED, anchor: 'middle' }));
 
   // Customer
   const name = f.name || 'Customer name';
-  s.push(text(400, 352, name, { font: SERIF, size: name.length > 26 ? 26 : 34, fill: GREEN, anchor: 'middle' }));
+  s.push(text(400, 334, name, { font: SERIF, size: name.length > 26 ? 26 : 34, fill: GREEN, anchor: 'middle' }));
   const sub = [f.place, f.phone].filter(Boolean).join('  ·  ');
-  if (sub) s.push(text(400, 382, sub, { size: 16, fill: MUTED, anchor: 'middle' }));
+  if (sub) s.push(text(400, 362, sub, { size: 16, fill: MUTED, anchor: 'middle' }));
 
   // Event / date / time
-  s.push('<rect x="80" y="412" width="640" height="96" rx="6" fill="' + TINT + '"/>');
-  s.push('<line x1="293" y1="428" x2="293" y2="492" stroke="' + RULE + '"/>');
-  s.push('<line x1="507" y1="428" x2="507" y2="492" stroke="' + RULE + '"/>');
+  s.push('<rect x="80" y="388" width="640" height="96" rx="6" fill="' + TINT + '"/>');
+  s.push('<line x1="293" y1="404" x2="293" y2="468" stroke="' + RULE + '"/>');
+  s.push('<line x1="507" y1="404" x2="507" y2="468" stroke="' + RULE + '"/>');
   const time = [fmtTime(f.from), fmtTime(f.to)].filter(Boolean).join(' to ');
   const cols = [
     [187, 'EVENT', f.event || '—', ''],
@@ -300,9 +303,9 @@ function buildSvg(f) {
   ];
   cols.forEach(c => {
     const hasSub = !!c[3];
-    s.push(text(c[0], hasSub ? 440 : 446, c[1], { size: 11, fill: GOLD, anchor: 'middle', spacing: 3 }));
-    s.push(text(c[0], hasSub ? 468 : 478, c[2], { font: SERIF, size: c[2].length > 18 ? 16 : 20, anchor: 'middle' }));
-    if (hasSub) s.push(text(c[0], 490, c[3], { size: 12, fill: MUTED, anchor: 'middle' }));
+    s.push(text(c[0], hasSub ? 416 : 422, c[1], { size: 11, fill: GOLD, anchor: 'middle', spacing: 3 }));
+    s.push(text(c[0], hasSub ? 444 : 454, c[2], { font: SERIF, size: c[2].length > 18 ? 16 : 20, anchor: 'middle' }));
+    if (hasSub) s.push(text(c[0], 466, c[3], { size: 12, fill: MUTED, anchor: 'middle' }));
   });
 
   // Amounts
@@ -310,13 +313,13 @@ function buildSvg(f) {
   if (f.deposit) rows.push(['Refundable Security Deposit', rupees(f.deposit)]);
   rows.push(['Total', rupees(f.total), true]);
   rows.push(['Advance Received', (f.advance ? '− ' : '') + rupees(f.advance)]);
-  let y = 562;
+  let y = 530;
   rows.forEach(r => {
     const o = r[2] ? { size: 18, weight: 600, fill: GREEN } : { size: 17 };
     s.push(text(100, y, r[0], o));
     s.push(text(700, y, r[1], Object.assign({ anchor: 'end' }, o)));
     s.push('<line x1="100" y1="' + (y + 14) + '" x2="700" y2="' + (y + 14) + '" stroke="' + RULE + '"/>');
-    y += 40;
+    y += 38;
   });
 
   y -= 8;
@@ -333,7 +336,7 @@ function buildSvg(f) {
 
   // Payment
   if (f.balance > 0) {
-    y += 112;
+    y += 104;
     s.push(text(400, y + 4, 'PAYMENT', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
     s.push('<line x1="100" y1="' + y + '" x2="340" y2="' + y + '" stroke="' + RULE + '"/>');
     s.push('<line x1="460" y1="' + y + '" x2="700" y2="' + y + '" stroke="' + RULE + '"/>');
@@ -354,12 +357,24 @@ function buildSvg(f) {
     if (f.bank) s.push(text(tx, ty, 'Banking name: ' + f.bank, { size: 13, fill: MUTED, anchor: anchor }));
   }
 
+  s.push('</g>');
+
+  // What the hall provides
+  if (f.facilities) {
+    s.push(text(400, 972, 'AVAILABLE AT THE HALL', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
+    s.push('<line x1="100" y1="968" x2="255" y2="968" stroke="' + RULE + '"/>');
+    s.push('<line x1="545" y1="968" x2="700" y2="968" stroke="' + RULE + '"/>');
+    s.push(text(400, 998, f.facilities, { size: f.facilities.length > 60 ? 13 : 15, anchor: 'middle' }));
+    s.push(text(400, 1019, 'Extra requirements are to be sourced from outside by the customer.',
+      { size: 12.5, fill: MUTED, anchor: 'middle' }));
+  }
+
   // Footer
   if (f.deposit) {
-    s.push(text(400, 1040, 'The security deposit will be refunded after the function, subject to no damages.',
+    s.push(text(400, 1054, 'The security deposit will be refunded after the function, subject to no damages.',
       { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
   }
-  s.push(text(400, 1076, 'Thank you for choosing us. We look forward to hosting your event.',
+  s.push(text(400, 1084, 'Thank you for choosing us. We look forward to hosting your event.',
     { font: SERIF, size: 16, fill: GREEN, anchor: 'middle', italic: true }));
   s.push('</svg>');
   return s.join('');
