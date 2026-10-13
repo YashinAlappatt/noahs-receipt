@@ -116,6 +116,11 @@ const SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
 const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV', INSTAGRAM = '@noahsgreensquare', PHONE = '+91 99950 81304';
+const SHARE_LINKS = 'Google: https://share.google/5ZB7X9r5WvYf4OUgT\n' +
+  'Instagram: https://instagram.com/noahsgreensquare?dlrf=dTloa3Bmd3c4Ynp3';
+function isMemorial() {
+  return !!booking && /memorial|remembrance/.test(eventKind(booking.event || ''));
+}
 const BOOKINGS_KEY = 'ngs-receipt-bookings';
 
 const $ = id => document.getElementById(id);
@@ -346,10 +351,16 @@ $('savePng').addEventListener('click', async () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   } catch (e) { alert(e.message); }
 });
+// Share sends the card with the two links as its text. Some apps drop text that comes with a
+// picture, so the links are also put on the clipboard, ready to paste. A memorial card goes alone.
 $('share').addEventListener('click', async () => {
+  const links = isMemorial() ? '' : SHARE_LINKS;
+  if (links && navigator.clipboard) navigator.clipboard.writeText(links).catch(() => {});
   try {
     const file = new File([await pngBlob()], fileName(), { type: 'image/png' });
-    if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
+    const withText = links ? { files: [file], text: links } : { files: [file] };
+    if (navigator.canShare(withText)) await navigator.share(withText);
+    else if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
     else alert('Sharing a picture is not supported here. Use "Save as photo" instead.');
   } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
 });
@@ -378,7 +389,8 @@ $('copy').addEventListener('click', async () => {
   if (/memorial|remembrance/.test(eventKind(booking.event || ''))) {
     $('hint').textContent = 'This is a memorial event, so the card does not ask for a Google review.';
   } else {
-    $('hint').textContent = 'The card says the Google link is sent along with it, so paste your link in the same chat.';
+    $('hint').textContent = 'Share sends the Google and Instagram links with the card. They are also copied, ' +
+      'so if the chat shows the card without them, just paste.';
   }
   if (navigator.canShare) $('share').hidden = false;
   if (balanceDue(booking) > 0) {
