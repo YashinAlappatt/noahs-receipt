@@ -233,7 +233,8 @@ function layout(message, size) {
 }
 
 // Where to find the hall online, along the bottom: the Google mark with the listing name,
-// and the Instagram mark with the handle. Left off a memorial card, which asks for neither.
+// and the Instagram mark with the handle. Every card has it, including a memorial card, whose
+// message still asks for no review and no follow.
 function findUs() {
   const size = 15, icon = 20, gap = 8, between = 44, y = 934;
   measure.font = size + 'px ' + SANS;
@@ -260,7 +261,7 @@ function findUs() {
 
 function buildSvg(message) {
   const memorial = booking && /memorial|remembrance/.test(eventKind(booking.event || ''));
-  const top = 330, room = memorial ? 610 : 550;
+  const top = 330, room = 550;
   let body = layout(message, 20);
   for (let size = 19; body.height > room && size >= 13; size--) body = layout(message, size);
   const start = top + Math.max(0, (room - body.height) / 2);
@@ -276,7 +277,7 @@ function buildSvg(message) {
     '<path d="M400 284 L406 290 L400 296 L394 290 Z" fill="' + GOLD + '"/>' +
     '<line x1="412" y1="290" x2="500" y2="290" stroke="' + GOLD + '"/>');
   body.items.forEach(it => s.push(text(400, start + it[0], it[1], it[2])));
-  if (!memorial) s.push(findUs());
+  s.push(findUs());
   s.push('</svg>');
   return s.join('');
 }
