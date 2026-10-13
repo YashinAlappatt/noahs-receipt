@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gratitude card</title>
+<style>
+  :root {
+    --green: #1f3d2b;
+    --gold: #b08d57;
+    --paper: #fbf8f1;
+    --ink: #26302a;
+    --muted: #6f776f;
+    --line: #dcd6c6;
+    --bg: #eef0ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: minmax(300px, 420px) 1fr;
+    gap: 24px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    align-items: start;
+  }
+  .wrap > * { min-width: 0; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  h1 { margin: 0 0 4px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: normal; color: var(--green); }
+  .who { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    line-height: 1.45;
+    color: inherit;
+    resize: vertical;
+  }
+  textarea:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  button, .back {
+    font: inherit;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: #fff;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  button.ghost, .back { background: #fff; color: var(--green); }
+  .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .preview svg { display: block; width: 100%; max-width: 600px; height: auto; margin: 0 auto; box-shadow: 0 6px 28px rgba(0, 0, 0, .14); }
+  @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>Gratitude card</h1>
+    <p class="who" id="who"></p>
+    <div id="editor">
+      <label for="message">Message (you can change any wording; the card updates as you type)</label>
+      <textarea id="message" rows="17"></textarea>
+      <div class="actions">
+        <button id="savePng">Save as photo</button>
+        <button id="share" class="ghost" hidden>Share</button>
+        <button id="copy" class="ghost">Copy text</button>
+        <button id="reset" class="ghost">Reset wording</button>
+      </div>
+      <p class="hint" id="hint"></p>
+    </div>
+    <p class="hint"><a class="back" href="./">Back to receipts</a></p>
+  </div>
+  <div class="preview" id="preview"></div>
+</div>
+
+<script>
+const W = 800, H = 1000;
+const GREEN = '#1f3d2b', GOLD = '#b08d57', GOLD_LIGHT = '#e7cf9a', PAPER = '#fbf8f1', INK = '#26302a', MUTED = '#6f776f';
+const SERIF = "Georgia, 'Times New Roman', serif";
+const SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+  'November', 'December'];
+const VENUE = "Noah's Green Square", SIGNED = 'Vincent AV';
+const BOOKINGS_KEY = 'ngs-receipt-bookings';
+
+const $ = id => document.getElementById(id);
+let booking = null;
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function longDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  return m ? +m[3] + ' ' + MONTHS[+m[2] - 1] + ' ' + m[1] : '';
+}
+
+// The kind of event decides the personal line. A memorial gets its own wording throughout,
+// with no request for a Google review.
+function eventKind(event) {
+  const t = event.toLowerCase();
+  if (/demise|death|funeral|memorial|remembrance|7th day|41st day/.test(t)) return /anniversary|remembrance/.test(t) ? 'remembrance' : 'memorial';
+  if (/baptism|communion|christening/.test(t)) return 'blessed';
+  if (/birthday/.test(t)) return 'birthday';
+  if (/engagement|wedding|marriage|reception|betrothal/.test(t)) return 'couple';
+  if (/90th day|naming|cradle|child/.test(t)) return 'child';
+  if (/meeting|conference|seminar|training|class/.test(t)) return 'meeting';
+  if (/onam|christmas|celebration|party|together|reunion|festival/.test(t)) return 'celebration';
+  return 'other';
+}
+const PERSONAL_LINE = {
+  blessed: 'It was a pleasure to host you and your family on such a blessed day.',
+  birthday: 'It was a joy to be part of such a happy occasion.',
+  couple: 'We wish the couple every happiness in the life ahead of them.',
+  child: 'We wish the little one a life full of blessings.',
+  meeting: 'We hope the hall served the gathering well.',
+  celebration: 'We were glad to be part of it.',
+  other: 'It was a pleasure to host you.',
+};
+
+// The wording never assumes the person who booked is the one being celebrated
+function defaultMessage(b) {
+  const name = (b.name || '').trim(), event = (b.event || '').trim(), kind = eventKind(event), on = longDate(b.date);
+  // A booking made through someone ('C/O Ravi (La Corona)') is addressed to that person
+  const through = /^c\/o\s+/i.test(name);
+  const person = through || /^(mr|mrs|ms|miss|dr|fr|sr|rev|shri|smt)\b\.?/i.test(name);
+  const dear = 'Dear ' + (through ? name.replace(/^c\/o\s+/i, '').replace(/\s*\(.*\)\s*$/, '')
+    : person ? name : 'members of ' + name) + ',';
+  const sign = '\n' + SIGNED + '\n' + VENUE;
+  if (kind === 'memorial' || kind === 'remembrance') {
+    return [dear,
+      'Thank you for trusting ' + VENUE + (on ? ' on ' + on : '') + '. ' + (kind === 'remembrance'
+        ? 'We hope the hall gave your family a fitting place to gather in remembrance.'
+        : 'We hope the arrangements gave your family the comfort and space you needed.'),
+      'If there was anything we could have done better, please let us know. Your feedback helps us serve families with more care.',
+      'With respectful regards,' + sign].join('\n\n');
+  }
+  const what = event ? event + (kind === 'birthday' && !/celebration|party/i.test(event) ? ' celebration' : '') : 'event';
+  if (!person) {
+    return [dear,
+      'Thank you for holding your ' + what + ' at ' + VENUE + (on ? ' on ' + on : '') + '. ' + PERSONAL_LINE[kind],
+      'We would value your honest feedback, both what worked well and what we should improve.',
+      'If you were satisfied, we would appreciate a short review about us on Google. I am sending the link along with this card.',
+      'With warm regards,' + sign].join('\n\n');
+  }
+  return [dear,
+    'Thank you for choosing ' + VENUE + ' for the ' + what + (on ? ' on ' + on : '') + '. ' + PERSONAL_LINE[kind],
+    'We would be grateful to hear how it went for you: what you liked, and what we could have done better. ' +
+      'Please tell us frankly; it helps us improve.',
+    'If you were happy with the hall, a few words about us on Google would mean a lot. I am sending the link along with this card.',
+    'With warm regards,' + sign].join('\n\n');
+}
+
+const measure = document.createElement('canvas').getContext('2d');
+function wrap(str, size, width) {
+  measure.font = size + 'px ' + SERIF;
+  const lines = [];
+  let line = '';
+  str.split(/\s+/).filter(Boolean).forEach(word => {
+    const next = line ? line + ' ' + word : word;
+    if (line && measure.measureText(next).width > width) { lines.push(line); line = word; } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+function text(x, y, str, o) {
+  return '<text x="' + x + '" y="' + y + '" font-family="' + (o.font || SERIF) + '" font-size="' + o.size + '" fill="' +
+    (o.fill || INK) + '" text-anchor="middle"' + (o.spacing ? ' letter-spacing="' + o.spacing + '"' : '') +
+    (o.italic ? ' font-style="italic"' : '') + '>' + esc(str) + '</text>';
+}
+
+// The message is blocks separated by blank lines: a greeting, paragraphs, then the sign-off
+// (its lines are the closing words, the signature, and the venue).
+function layout(message, size) {
+  const blocks = message.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const lh = Math.round(size * 1.58), items = [];
+  let y = 0;
+  blocks.forEach((block, i) => {
+    const first = i === 0 && blocks.length > 1, last = i === blocks.length - 1 && blocks.length > 1;
+    if (first) {
+      wrap(block, size + 5, 600).forEach(l => { y += size + 12; items.push([y, l, { size: size + 5, fill: GREEN }]); });
+      y += 12;
+    } else if (last) {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      y += 14;
+      lines.forEach((l, k) => {
+        if (k === 0) { y += lh; items.push([y, l, { size: size - 1, fill: MUTED, italic: true }]); }
+        else if (k === 1) { y += size + 24; items.push([y, l, { size: size + 12, fill: GREEN, italic: true }]); }
+        else { y += 28; items.push([y, l.toUpperCase(), { size: 13, fill: GOLD, spacing: 4, font: SANS }]); }
+      });
+    } else {
+      wrap(block.replace(/\n/g, ' '), size, 590).forEach(l => { y += lh; items.push([y, l, { size: size }]); });
+      y += Math.round(size * 0.9);
+    }
+  });
+  return { items: items, height: y };
+}
+
+function buildSvg(message) {
+  const top = 330, room = 610;
+  let body = layout(message, 20);
+  for (let size = 19; body.height > room && size >= 13; size--) body = layout(message, size);
+  const start = top + Math.max(0, (room - body.height) / 2);
+  const memorial = booking && /memorial|remembrance/.test(eventKind(booking.event || ''));
+  const s = [];
+  s.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">');
+  s.push('<rect width="' + W + '" height="' + H + '" fill="' + PAPER + '"/>');
+  s.push('<rect x="20" y="20" width="760" height="960" fill="none" stroke="' + GOLD + '" stroke-width="1.5"/>');
+  s.push('<rect x="28" y="28" width="744" height="944" fill="none" stroke="' + GOLD + '" stroke-width="0.5"/>');
+  s.push('<rect x="40" y="40" width="720" height="118" fill="' + GREEN + '"/>');
+  s.push(text(400, 112, VENUE.toUpperCase(), { size: 32, fill: PAPER, spacing: 5 }));
+  s.push(text(400, 252, memorial ? 'With Gratitude' : 'Thank You', { size: 64, fill: GREEN, italic: true }));
+  s.push('<line x1="300" y1="290" x2="388" y2="290" stroke="' + GOLD + '"/>' +
+    '<path d="M400 284 L406 290 L400 296 L394 290 Z" fill="' + GOLD + '"/>' +
+    '<line x1="412" y1="290" x2="500" y2="290" stroke="' + GOLD + '"/>');
+  body.items.forEach(it => s.push(text(400, start + it[0], it[1], it[2])));
+  s.push('</svg>');
+  return s.join('');
+}
+
+function render() {
+  $('preview').innerHTML = buildSvg($('message').value);
+}
+function pngBlob() {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([buildSvg($('message').value)], { type: 'image/svg+xml;charset=utf-8' }));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = W * 2;
+      canvas.height = H * 2;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not make the picture')), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not make the picture')); };
+    img.src = url;
+  });
+}
+function fileName() {
+  return ('Thank you - ' + (booking.name || '')).replace(/[\\/:*?"<>|]/g, '').trim() + '.png';
+}
+
+$('message').addEventListener('input', render);
+$('reset').addEventListener('click', () => { $('message').value = defaultMessage(booking); render(); });
+$('savePng').addEventListener('click', async () => {
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await pngBlob());
+    a.download = fileName();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch (e) { alert(e.message); }
+});
+$('share').addEventListener('click', async () => {
+  try {
+    const file = new File([await pngBlob()], fileName(), { type: 'image/png' });
+    if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
+    else alert('Sharing a picture is not supported here. Use "Save as photo" instead.');
+  } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
+});
+$('copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('message').value);
+  } catch (e) {
+    $('message').select();
+    document.execCommand('copy');
+  }
+  $('copy').textContent = 'Copied';
+  setTimeout(() => { $('copy').textContent = 'Copy text'; }, 1500);
+});
+
+(function init() {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(BOOKINGS_KEY)) || []; } catch (e) { list = []; }
+  const id = new URLSearchParams(location.search).get('id');
+  booking = list.find(b => b.id === id);
+  if (!booking) {
+    $('who').textContent = 'This booking was not found on this device. Go back to the receipt page and open the card from the saved bookings list.';
+    $('editor').hidden = true;
+    return;
+  }
+  $('who').textContent = [booking.name, booking.event, longDate(booking.date)].filter(Boolean).join(' · ');
+  if (/memorial|remembrance/.test(eventKind(booking.event || ''))) {
+    $('hint').textContent = 'This is a memorial event, so the card does not ask for a Google review.';
+  } else {
+    $('hint').textContent = 'The card says the Google link is sent along with it, so paste your link in the same chat.';
+  }
+  if (navigator.canShare) $('share').hidden = false;
+  $('message').value = defaultMessage(booking);
+  render();
+})();
+</script>
+</body>
+</html>

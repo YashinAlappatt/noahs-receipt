@@ -125,6 +125,15 @@
   .saved small { display: block; font-weight: normal; color: var(--muted); font-size: 12px; }
   .saved .btns { display: flex; gap: 6px; flex-shrink: 0; }
   .saved button { padding: 5px 10px; font-size: 13px; }
+  .saved .cardlink {
+    padding: 5px 10px;
+    font-size: 13px;
+    border: 1px solid var(--green);
+    border-radius: 6px;
+    color: var(--green);
+    text-decoration: none;
+  }
+  .saved .btns { flex-wrap: wrap; justify-content: flex-end; }
   .tabs { display: flex; gap: 8px; margin-top: 10px; }
   .tabs { flex-wrap: wrap; }
   .tabs button { flex: 1; padding: 7px 10px; font-size: 14px; }
@@ -804,7 +813,18 @@ function renderSaved() {
     del.className = 'ghost';
     del.textContent = 'Delete';
     del.addEventListener('click', () => deleteBooking(b));
-    btns.append(open, del);
+    btns.append(open);
+    // A thank-you card for events that have taken place
+    if (b.cancelled !== 'yes' && b.date && b.date < today) {
+      const card = document.createElement('a');
+      card.className = 'cardlink';
+      card.textContent = 'Card';
+      card.href = 'card.html?id=' + encodeURIComponent(b.id);
+      card.target = '_blank';
+      card.rel = 'noopener';
+      btns.append(card);
+    }
+    btns.append(del);
     li.append(who, btns);
     ul.appendChild(li);
   });
