@@ -164,6 +164,25 @@
 </div>
 
 <script>
+// Phones often keep showing an old copy of this page. If the site has a newer one, load it:
+// once per new version, and never after typing has started, so nothing being entered is lost.
+let pageTouched = false;
+document.addEventListener('input', () => { pageTouched = true; }, { once: true });
+function loadNewest() {
+  if (!/^https?:$/.test(location.protocol)) return;
+  fetch(location.pathname, { method: 'HEAD', cache: 'no-store' }).then(res => {
+    const latest = res.headers.get('last-modified');
+    if (!latest || pageTouched) return;
+    if (new Date(latest).getTime() - new Date(document.lastModified).getTime() <= 5000) return;
+    try {
+      if (sessionStorage.getItem('ngs-newest') === latest) return;
+      sessionStorage.setItem('ngs-newest', latest);
+    } catch (e) { return; }
+    location.reload();
+  }).catch(() => {});
+}
+loadNewest();
+
 const LEDGER_KEY = 'ngs-ledger';
 const BOOKINGS_KEY = 'ngs-receipt-bookings';
 const SETTINGS_KEY = 'ngs-receipt-settings';
