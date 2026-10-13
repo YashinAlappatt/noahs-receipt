@@ -238,6 +238,8 @@
           <label for="syncUrl">Shared bookings link (Google Sheet)</label>
           <input id="syncUrl" type="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec">
           <p class="hint">Paste the same link on every device to share one bookings list. Keep the link private.</p>
+          <div class="actions"><button id="copyLink" class="ghost">Copy my private link</button></div>
+          <p class="hint">If a phone keeps forgetting the link above: copy the private link, open it once in the browser on that phone, then add the page to the Home Screen or bookmark it. Opening it that way brings the shared list back by itself. Give this link only to family who use the tool.</p>
         </div>
         <div class="full">
           <label for="qr">Use a different payment QR picture</label>
@@ -823,7 +825,7 @@ function renderSaved() {
       const card = document.createElement('a');
       card.className = 'cardlink';
       card.textContent = 'Card';
-      card.href = 'card.html?id=' + encodeURIComponent(b.id);
+      card.href = 'card.html?id=' + encodeURIComponent(b.id) + (LINK_URL ? location.hash : '');
       card.target = '_blank';
       card.rel = 'noopener';
       btns.append(card);
@@ -921,6 +923,21 @@ $('tabUpcoming').addEventListener('click', () => { savedView = 'upcoming'; rende
 $('tabFinished').addEventListener('click', () => { savedView = 'finished'; renderSaved(); });
 $('tabCancelled').addEventListener('click', () => { savedView = 'cancelled'; renderSaved(); });
 $('syncNow').addEventListener('click', syncBookings);
+$('copyLink').addEventListener('click', async () => {
+  const url = syncUrl();
+  if (!url) { alert('Paste the shared bookings link first.'); return; }
+  const link = location.origin + location.pathname + '#link=' + encodeURIComponent(url);
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch (e) {
+    prompt('Copy this private link:', link);
+    return;
+  }
+  $('copyLink').textContent = 'Copied';
+  setTimeout(() => { $('copyLink').textContent = 'Copy my private link'; }, 1500);
+});
+// A page brought back from the browser's memory (Back button, reopened tab) refreshes too
+window.addEventListener('pageshow', e => { if (e.persisted) syncBookings(); });
 // Keep this device's copy fresh, so a booking is never opened and saved from an out-of-date copy
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncBookings(); });
 setInterval(() => { if (!document.hidden) syncBookings(); }, 60000);
@@ -970,6 +987,30 @@ SETTING_IDS.forEach(id => {
 });
 document.addEventListener('input', render);
 
+// A private link carries the shared-list address after '#link='. A phone that has dropped its saved
+// data (some browsers clear it after a week unused, or keep a separate copy for a Home Screen icon)
+// gets the address back just by opening that link. The part after '#' is never sent to any server.
+let LINK_URL = '';
+(function restoreFromLink() {
+  const m = /[#&]link=([^&]+)/.exec(location.hash);
+  if (!m) return;
+  let url = '';
+  try { url = decodeURIComponent(m[1]); } catch (e) { return; }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(url)) return;
+  LINK_URL = url;
+  try {
+    const saved = JSON.parse(localStorage.getItem('ngs-receipt-settings')) || {};
+    if (saved.syncUrl !== url) { saved.syncUrl = url; localStorage.setItem('ngs-receipt-settings', JSON.stringify(saved)); }
+  } catch (e) { /* storage unavailable: the address from the link is still used for this visit */ }
+  // The other pages are opened with the same private link
+  document.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!/^[a-z]+:/i.test(href) && href.indexOf('#') < 0) a.setAttribute('href', href + location.hash);
+  });
+})();
+// Ask the browser to keep this site's saved data; it may still decline
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
 (function init() {
   let saved = {};
   try { saved = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
@@ -977,6 +1018,7 @@ document.addEventListener('input', render);
   if (OLD_FACILITIES.indexOf(saved.facilities) >= 0) delete saved.facilities;
   if (saved.tagline === 'MINI AUDITORIUM') delete saved.tagline;
   SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
+  if (LINK_URL) $('syncUrl').value = LINK_URL;
   qrData = load(QR_KEY) || DEFAULT_QR;
   setField('booked', isoToday());
   if (navigator.canShare) $('share').hidden = false;

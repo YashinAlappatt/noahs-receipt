@@ -210,7 +210,32 @@ function eventLabel(b) {
 
 // Shared list: with a Google Sheet link set on the receipts page, entries are kept in the sheet's
 // Ledger tab and this device holds a copy. An entry without `synced` is sent on the next sync.
+// A private link carries the shared-list address after '#link='. A phone that has dropped its saved
+// data (some browsers clear it after a week unused, or keep a separate copy for a Home Screen icon)
+// gets the address back just by opening that link. The part after '#' is never sent to any server.
+let LINK_URL = '';
+(function restoreFromLink() {
+  const m = /[#&]link=([^&]+)/.exec(location.hash);
+  if (!m) return;
+  let url = '';
+  try { url = decodeURIComponent(m[1]); } catch (e) { return; }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(url)) return;
+  LINK_URL = url;
+  try {
+    const saved = JSON.parse(localStorage.getItem('ngs-receipt-settings')) || {};
+    if (saved.syncUrl !== url) { saved.syncUrl = url; localStorage.setItem('ngs-receipt-settings', JSON.stringify(saved)); }
+  } catch (e) { /* storage unavailable: the address from the link is still used for this visit */ }
+  // The other pages are opened with the same private link
+  document.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!/^[a-z]+:/i.test(href) && href.indexOf('#') < 0) a.setAttribute('href', href + location.hash);
+  });
+})();
+// Ask the browser to keep this site's saved data; it may still decline
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
 function syncUrl() {
+  if (LINK_URL) return LINK_URL;
   let settings = {};
   try { settings = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { settings = {}; }
   return (settings.syncUrl || '').trim();
@@ -514,6 +539,7 @@ $('saveRegular').addEventListener('click', () => {
   if (ok) { $('saveRegular').textContent = 'Saved'; setTimeout(() => { $('saveRegular').textContent = 'Save amounts'; }, 1500); }
 });
 $('rentMonth').addEventListener('change', renderMonthly);
+window.addEventListener('pageshow', e => { if (e.persisted) sync(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 
 clearForm();

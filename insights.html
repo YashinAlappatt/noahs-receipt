@@ -573,6 +573,30 @@ function useBookings(list) {
 }
 
 // Shows this device's copy at once, then the latest from the shared Google Sheet when a link is set
+// A private link carries the shared-list address after '#link='. A phone that has dropped its saved
+// data (some browsers clear it after a week unused, or keep a separate copy for a Home Screen icon)
+// gets the address back just by opening that link. The part after '#' is never sent to any server.
+let LINK_URL = '';
+(function restoreFromLink() {
+  const m = /[#&]link=([^&]+)/.exec(location.hash);
+  if (!m) return;
+  let url = '';
+  try { url = decodeURIComponent(m[1]); } catch (e) { return; }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(url)) return;
+  LINK_URL = url;
+  try {
+    const saved = JSON.parse(localStorage.getItem('ngs-receipt-settings')) || {};
+    if (saved.syncUrl !== url) { saved.syncUrl = url; localStorage.setItem('ngs-receipt-settings', JSON.stringify(saved)); }
+  } catch (e) { /* storage unavailable: the address from the link is still used for this visit */ }
+  // The other pages are opened with the same private link
+  document.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (!/^[a-z]+:/i.test(href) && href.indexOf('#') < 0) a.setAttribute('href', href + location.hash);
+  });
+})();
+// Ask the browser to keep this site's saved data; it may still decline
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
 async function refresh() {
   let local = [], settings = {};
   try { local = JSON.parse(load(BOOKINGS_KEY)) || []; } catch (e) { local = []; }
@@ -581,7 +605,7 @@ async function refresh() {
   try { localLedger = JSON.parse(load('ngs-ledger')) || []; } catch (e) { localLedger = []; }
   useLedger(localLedger);
   useBookings(local);
-  const url = (settings.syncUrl || '').trim();
+  const url = LINK_URL || (settings.syncUrl || '').trim();
   if (!url) { $('status').textContent = "Showing this device's saved bookings."; return; }
   $('status').textContent = 'Updating from the shared list…';
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -616,6 +640,7 @@ $('year').addEventListener('change', () => { year = $('year').value; render(); }
 $('refresh').addEventListener('click', refresh);
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+window.addEventListener('pageshow', e => { if (e.persisted) refresh(); });
 refresh();
 </script>
 </body>
