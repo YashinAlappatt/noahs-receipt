@@ -154,6 +154,8 @@
       <div><label for="rent">Total Rent (₹)</label><input id="rent" type="number" min="0" inputmode="numeric"></div>
       <div><label for="deposit">Security Amount (₹)</label><input id="deposit" type="number" min="0" inputmode="numeric" value="1000"></div>
       <div class="full"><label for="advance">Advance Received (₹)</label><input id="advance" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="balpaid">Balance Received (₹)</label><input id="balpaid" type="number" min="0" inputmode="numeric"></div>
+      <div><label for="baldate">Balance received on</label><input id="baldate" type="date"></div>
     </div>
     <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
     <p class="hint" id="dueOut"></p>
@@ -226,7 +228,7 @@ const SETTING_DEFAULTS = {
   facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables',
   syncUrl: '',
 };
-const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance'];
+const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'balpaid', 'baldate'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 
 const $ = id => document.getElementById(id);
@@ -271,8 +273,10 @@ function readForm() {
   f.rent = num('rent');
   f.deposit = num('deposit');
   f.advance = num('advance');
+  f.balpaid = num('balpaid');
   f.total = f.rent + f.deposit;
-  f.balance = f.total - f.advance;
+  f.balance = f.total - f.advance - f.balpaid;
+  f.baldateObj = parseDate(f.baldate);
   f.dateObj = parseDate(f.date);
   // Balance is due two days before the event, or today if that day has already passed
   f.paybyObj = f.dateObj ? new Date(f.dateObj.getFullYear(), f.dateObj.getMonth(), f.dateObj.getDate() - 2) : null;
@@ -343,13 +347,17 @@ function buildSvg(f) {
   if (f.deposit) rows.push(['Refundable Security Deposit', rupees(f.deposit)]);
   rows.push(['Total', rupees(f.total), true]);
   rows.push(['Advance Received', (f.advance ? '− ' : '') + rupees(f.advance)]);
+  if (f.balpaid) {
+    rows.push(['Balance Received' + (f.baldateObj ? ' on ' + fmtDate(f.baldateObj) : ''), '− ' + rupees(f.balpaid)]);
+  }
+  const step = rows.length > 4 ? 32 : 38;
   let y = 530;
   rows.forEach(r => {
     const o = r[2] ? { size: 18, weight: 600, fill: GREEN } : { size: 17 };
     s.push(text(100, y, r[0], o));
     s.push(text(700, y, r[1], Object.assign({ anchor: 'end' }, o)));
     s.push('<line x1="100" y1="' + (y + 14) + '" x2="700" y2="' + (y + 14) + '" stroke="' + RULE + '"/>');
-    y += 38;
+    y += step;
   });
 
   y -= 8;
@@ -544,8 +552,9 @@ function renderSaved() {
     who.className = 'who';
     who.textContent = b.name || 'No name';
     const small = document.createElement('small');
-    const balance = (parseFloat(b.rent) || 0) + (parseFloat(b.deposit) || 0) - (parseFloat(b.advance) || 0);
-    small.textContent = [fmtDate(parseDate(b.date)), b.event, 'Balance ' + rupees(balance),
+    const balance = (parseFloat(b.rent) || 0) + (parseFloat(b.deposit) || 0) - (parseFloat(b.advance) || 0) -
+      (parseFloat(b.balpaid) || 0);
+    small.textContent = [fmtDate(parseDate(b.date)), b.event, balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
       syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
@@ -611,6 +620,15 @@ $('saveBooking').addEventListener('click', () => {
   $('saveBooking').textContent = 'Saved';
   setTimeout(renderSaved, 1500);
   syncBookings();
+});
+
+// Entering a balance payment dates it today unless a date is already set
+$('balpaid').addEventListener('input', () => {
+  if ($('balpaid').value && !$('baldate').value) {
+    const d = new Date();
+    $('baldate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
 });
 
 $('syncNow').addEventListener('click', syncBookings);

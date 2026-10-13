@@ -3,7 +3,7 @@
 // (Execute as: Me, Who has access: Anyone). The web app link is the key to the list: keep it private.
 
 const SHEET_NAME = 'Bookings';
-const FIELDS = ['id', 'name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'updated'];
+const FIELDS = ['id', 'name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'balpaid', 'baldate', 'updated'];
 
 function sheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
