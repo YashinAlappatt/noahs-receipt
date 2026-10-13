@@ -737,6 +737,9 @@ $('balpaid').addEventListener('input', () => {
 $('tabUpcoming').addEventListener('click', () => { savedView = 'upcoming'; renderSaved(); });
 $('tabFinished').addEventListener('click', () => { savedView = 'finished'; renderSaved(); });
 $('syncNow').addEventListener('click', syncBookings);
+// Keep this device's copy fresh, so a booking is never opened and saved from an out-of-date copy
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncBookings(); });
+setInterval(() => { if (!document.hidden) syncBookings(); }, 60000);
 $('syncUrl').addEventListener('change', syncBookings);
 
 $('copyText').addEventListener('click', async () => {
