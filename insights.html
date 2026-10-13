@@ -241,6 +241,9 @@ function enrich(b) {
   });
 }
 
+function paidOn(b) {
+  return num(b.advance) + num(b.balpaid);
+}
 // Cancelled events are kept out of every figure and chart, and listed on their own
 function cancelledEvents() {
   return all.filter(b => b.cancelled === 'yes' && (year === 'all' || b.date.slice(0, 4) === year));
@@ -439,11 +442,13 @@ function render() {
   const list = selected(), gone = cancelledEvents();
   $('cancelCard').hidden = !gone.length;
   $('cancelNote').textContent = gone.length + (gone.length === 1 ? ' event' : ' events') +
-    ', not counted in any figure above. Money received on them: ' + rupees(gone.reduce((a, b) => a + num(b.advance) + num(b.balpaid), 0)) + '.';
-  $('cancelTable').innerHTML = '<tr><th>Date</th><th>Name</th><th>Event</th><th>Reason</th><th class="n">Money received</th></tr>' +
+    ', not counted in any figure above. Refunded: ' + rupees(gone.reduce((a, b) => a + (b.keepadvance === 'yes' ? 0 : paidOn(b)), 0)) +
+    ' · Kept: ' + rupees(gone.reduce((a, b) => a + (b.keepadvance === 'yes' ? paidOn(b) : 0), 0)) + '.';
+  $('cancelTable').innerHTML = '<tr><th>Date</th><th>Name</th><th>Event</th><th>Reason</th><th class="n">Money received</th><th>Advance</th></tr>' +
     gone.slice().sort((a, b) => a.date.localeCompare(b.date)).map(b => '<tr><td>' + fmtDate(b.date) + '</td><td class="name">' +
       esc(b.name || '') + '</td><td>' + esc(b.event || '') + '</td><td class="name">' + esc(b.cancelreason || '–') +
-      '</td><td class="n">' + rupees(num(b.advance) + num(b.balpaid)) + '</td></tr>').join('');
+      '</td><td class="n">' + rupees(paidOn(b)) + '</td><td>' +
+      (!paidOn(b) ? '–' : b.keepadvance === 'yes' ? 'Kept' : 'Refunded') + '</td></tr>').join('');
   if (picked && !list.some(b => b.month === picked)) picked = null;
   $('main').hidden = !list.length;
   $('empty').hidden = !!list.length;

@@ -182,6 +182,7 @@
       <div class="full check"><label><input id="secrefunded" type="checkbox"> Security amount refunded</label></div>
       <div class="full check"><label><input id="cancelled" type="checkbox"> Event cancelled</label></div>
       <div class="full" id="reasonWrap" hidden><label for="cancelreason">Reason for cancelling (optional)</label><input id="cancelreason" autocomplete="off"></div>
+      <div class="full check" id="keepWrap" hidden><label><input id="keepadvance" type="checkbox"> Do not refund the advance</label></div>
     </div>
     <div class="balance"><span>Balance amount</span><b id="balanceOut">₹0</b></div>
     <p class="hint" id="dueOut"></p>
@@ -266,7 +267,7 @@ const OLD_FACILITIES = [
   '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
 ];
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'discount', 'deposit', 'advance', 'balpaid', 'baldate',
-  'secrefunded', 'booked', 'cancelled', 'cancelreason'];
+  'secrefunded', 'booked', 'cancelled', 'cancelreason', 'keepadvance'];
 function isoToday() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -426,6 +427,12 @@ function buildSvg(f) {
       const reason = f.cancelreason.length > 80 ? f.cancelreason.slice(0, 79) + '…' : f.cancelreason;
       s.push(text(400, y + 100, 'Reason: ' + reason, { size: 14, fill: MUTED, anchor: 'middle' }));
     }
+    const paid = f.advance + f.balpaid;
+    if (paid) {
+      s.push(text(400, y + (f.cancelreason ? 126 : 100), f.keepadvance
+        ? 'The amount of ' + rupees(paid) + ' already paid is not refundable.'
+        : 'The amount of ' + rupees(paid) + ' already paid will be refunded.', { size: 15, anchor: 'middle' }));
+    }
   } else if (f.balance > 0) {
     s.push(text(108, y + 42, 'BALANCE TO BE PAID', { size: 14, fill: PAPER, spacing: 3 }));
     s.push(text(692, y + 46, rupees(f.balance), { font: SERIF, size: 30, fill: GOLD_LIGHT, anchor: 'end' }));
@@ -542,6 +549,7 @@ function render() {
   $('unsaved').hidden = !unsavedChanges();
   showClash();
   $('reasonWrap').hidden = !f.cancelled;
+  $('keepWrap').hidden = !f.cancelled;
   $('dueOut').textContent = f.paybyObj && f.balance > 0 && !f.cancelled
     ? 'Balance due on or before ' + fmtDate(f.paybyObj) + (f.paybyToday ? ' (today, as the event is less than 2 days away)' : ' (2 days before the event)') : '';
   document.title = fileName(f);
@@ -778,7 +786,9 @@ function renderSaved() {
       (parseFloat(b.balpaid) || 0);
     const when = [fmtTime(b.from), fmtTime(b.to)].filter(Boolean).join(' to ');
     small.textContent = [fmtDate(parseDate(b.date)), when, b.event,
-      b.cancelled === 'yes' ? 'Cancelled' + (b.cancelreason ? ': ' + b.cancelreason : '')
+      b.cancelled === 'yes' ? 'Cancelled' + (b.cancelreason ? ': ' + b.cancelreason : '') +
+        ((parseFloat(b.advance) || 0) + (parseFloat(b.balpaid) || 0) > 0
+          ? (b.keepadvance === 'yes' ? ' · Advance kept' : ' · Advance refunded') : '')
         : balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
       !(parseFloat(b.deposit) > 0) ? '' : b.secrefunded === 'yes' ? 'Security refunded'
         : b.cancelled !== 'yes' && b.date && b.date < today ? 'Security not refunded' : '',
