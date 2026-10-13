@@ -225,9 +225,14 @@ const SETTING_DEFAULTS = {
   tagline: 'MINI AUDITORIUM',
   gpay: '8129685015',
   bank: 'ALAPPATT METALS',
-  facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Homeguard (to control road traffic)',
+  facilities: '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  18 Car Parking Spaces  ·  Homeguard (to control road traffic)',
   syncUrl: '',
 };
+// Earlier built-in facility lists; a device still holding one moves to the current list
+const OLD_FACILITIES = [
+  '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables',
+  '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables  ·  Homeguard (to control road traffic)',
+];
 const FORM_IDS = ['name', 'place', 'phone', 'event', 'date', 'from', 'to', 'rent', 'deposit', 'advance', 'balpaid', 'baldate'];
 const SETTING_IDS = Object.keys(SETTING_DEFAULTS);
 
@@ -398,20 +403,36 @@ function buildSvg(f) {
   s.push('</g>');
 
   // What the hall provides
+  // A long list is split over two lines, at the "·" that leaves the lines most even
+  const items = f.facilities.split('·').map(x => x.trim()).filter(Boolean);
+  let facLines = [f.facilities];
+  if (f.facilities.length > 60 && items.length > 1) {
+    let best = 1, bestDiff = Infinity;
+    for (let k = 1; k < items.length; k++) {
+      const diff = Math.abs(items.slice(0, k).join('').length - items.slice(k).join('').length);
+      if (diff < bestDiff) { bestDiff = diff; best = k; }
+    }
+    facLines = [items.slice(0, best).join('  ·  '), items.slice(best).join('  ·  ')];
+  }
+  const two = facLines.length === 2;
   if (f.facilities) {
-    s.push(text(400, 972, 'AVAILABLE AT THE HALL', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
-    s.push('<line x1="100" y1="968" x2="255" y2="968" stroke="' + RULE + '"/>');
-    s.push('<line x1="545" y1="968" x2="700" y2="968" stroke="' + RULE + '"/>');
-    s.push(text(400, 998, f.facilities, { size: f.facilities.length > 60 ? 13 : 15, anchor: 'middle' }));
-    s.push(text(400, 1019, 'Lights, music, decoration and any extra requirements are to be sourced from outside by the customer.',
+    const hy = two ? 960 : 972;
+    s.push(text(400, hy, 'AVAILABLE AT THE HALL', { size: 12, fill: GOLD, anchor: 'middle', spacing: 5 }));
+    s.push('<line x1="100" y1="' + (hy - 4) + '" x2="255" y2="' + (hy - 4) + '" stroke="' + RULE + '"/>');
+    s.push('<line x1="545" y1="' + (hy - 4) + '" x2="700" y2="' + (hy - 4) + '" stroke="' + RULE + '"/>');
+    facLines.forEach((line, i) => {
+      s.push(text(400, two ? 985 + i * 19 : 998, line, { size: two ? 14 : line.length > 60 ? 13 : 15, anchor: 'middle' }));
+    });
+    s.push(text(400, two ? 1023 : 1019,
+      'Lights, music, decoration and any extra requirements are to be sourced from outside by the customer.',
       { size: 12.5, fill: MUTED, anchor: 'middle' }));
   }
-  s.push(text(400, 1038, 'For more than 200 people, please arrange a Green Protocol Certificate from the Panchayat.',
+  s.push(text(400, two ? 1041 : 1038, 'For more than 200 people, please arrange a Green Protocol Certificate from the Panchayat.',
     { size: 12.5, anchor: 'middle' }));
 
   // Footer
   if (f.deposit) {
-    s.push(text(400, 1061, 'The security deposit will be refunded after the function, subject to no damages.',
+    s.push(text(400, 1063, 'The security deposit will be refunded after the function, subject to no damages.',
       { size: 13, fill: MUTED, anchor: 'middle', italic: true }));
   }
   s.push(text(400, 1087, 'Thank you for choosing us. We look forward to hosting your event.',
@@ -684,7 +705,7 @@ document.addEventListener('input', render);
   let saved = {};
   try { saved = JSON.parse(load(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
   // A device still holding the earlier built-in list moves to the current one
-  if (saved.facilities === '200 Chairs  ·  6 Round Tables  ·  22 Steel Long Tables') delete saved.facilities;
+  if (OLD_FACILITIES.indexOf(saved.facilities) >= 0) delete saved.facilities;
   SETTING_IDS.forEach(id => { $(id).value = saved[id] != null ? saved[id] : SETTING_DEFAULTS[id]; });
   qrData = load(QR_KEY) || DEFAULT_QR;
   if (navigator.canShare) $('share').hidden = false;
