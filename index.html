@@ -663,6 +663,11 @@ function storeBookings(list) {
 
 // Warns when the date in the form already has another saved booking. Times overlap when each
 // starts before the other ends; a booking missing a start or end time counts as a possible clash.
+// Two events on one day also need CLEANING_GAP minutes between them.
+const CLEANING_GAP = 60;
+function minutes(t) {
+  return +t.slice(0, 2) * 60 + +t.slice(3, 5);
+}
 function showClash() {
   const date = $('date').value, from = $('from').value, to = $('to').value;
   const sameDay = date ? loadBookings().filter(b => b.id !== currentId && b.date === date) : [];
@@ -678,7 +683,13 @@ function showClash() {
       serious = true;
       return 'Double booking: this time overlaps with ' + who + '.';
     }
-    return 'Also booked that day: ' + who + '. The times do not overlap.';
+    const gap = from >= b.to ? minutes(from) - minutes(b.to) : minutes(b.from) - minutes(to);
+    if (gap < CLEANING_GAP) {
+      serious = true;
+      return 'Too close to ' + who + ': ' + (gap ? 'only ' + gap + ' minutes' : 'no time') +
+        ' between the two events. 1 hour is needed for cleaning.';
+    }
+    return 'Also booked that day: ' + who + '. There is enough time between the two events.';
   });
   const el = $('clash');
   el.textContent = lines.join('\n');
