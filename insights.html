@@ -851,33 +851,6 @@ function buildReport(p) {
   const income = sumOf(live, b => b.net), received = sumOf(live, b => b.received), due = sumOf(live, b => b.due);
   // The part of the rent paid as advance; anything more that came in was paid later as balance
   const advances = sumOf(live, b => Math.min(num(b.advance), b.net));
-  // Everything paid so far for events still to come, which goes back if one is cancelled
-  const held = sumOf(live.filter(b => !b.finished), b => num(b.advance) + num(b.balpaid));
-  const outgo = sumOf(spent, e => num(e.amount)), other = sumOf(earned, e => num(e.amount));
-  const net = received + other - outgo;
-  const done = live.filter(b => b.finished).length;
-  const money = n => (n < 0 ? '− ' : '') + rupees(Math.abs(n));
-  const R = new Layout(p);
-
-  R.section('Summary');
-  R.tiles([
-    ['Events', String(live.length), done + ' finished · ' + (live.length - done) + ' upcoming'],
-    ['Hall income', rupees(income), 'Rent after discount for these events'],
-    ['Still to receive', rupees(due), 'Rent not yet paid'],
-    ['Received for these events', rupees(received), 'Advances and balance payments'],
-    ['Advances', rupees(advances), 'Paid when booking'],
-    ['Balance payments', rupees(received - advances), 'Paid after booking'],
-    ['Held for upcoming events', rupees(held), 'Paid in advance; refundable if cancelled'],
-    ['Expenses', rupees(outgo), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
-    ['Other income', rupees(other), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
-    ['Net', money(net), 'Received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
-    ['Bookings taken', String(taken.length), 'Bookings made in this period'],
-    ['Cancelled events', String(gone.length), gone.length ? 'Not counted in any figure' : ''],
-  ]);
-  R.note('Events and their rent are counted by the date of the event. Expenses and other income by the date they were entered. ' +
-    'The refundable security deposit is not income and is left out. Discounts given: ' + rupees(sumOf(live, b => b.discountGiven)) + '.');
-
-
   // Cash flow: each payment on the day it came in. An advance counts on the booking date; a balance
   // payment on its 'received on' date, or on the event date (marked *) where none was recorded.
   // Security deposits are left out, as they go back. A cancelled booking's advance counts only if kept.
@@ -893,6 +866,35 @@ function buildReport(p) {
     if (adv) payments.push({ b: b, kind: 'Advance', amount: adv, date: valid(b.booked) ? b.booked : b.date, assumed: !valid(b.booked) });
     if (bal > 0) payments.push({ b: b, kind: 'Balance', amount: bal, date: valid(b.baldate) ? b.baldate : b.date, assumed: !valid(b.baldate) });
   });
+  // Money in hand for events after the period: paid by its last day (or by today, for a period
+  // still running) towards events after that day. It goes back if such an event is cancelled.
+  const heldOn = p.to < todayIso() ? p.to : todayIso();
+  const held = sumOf(payments.filter(x => x.b.cancelled !== 'yes' && x.date <= heldOn && x.b.date > heldOn), x => x.amount);
+  const outgo = sumOf(spent, e => num(e.amount)), other = sumOf(earned, e => num(e.amount));
+  const net = received + other - outgo;
+  const done = live.filter(b => b.finished).length;
+  const money = n => (n < 0 ? '− ' : '') + rupees(Math.abs(n));
+  const R = new Layout(p);
+
+  R.section('Summary');
+  R.tiles([
+    ['Events', String(live.length), done + ' finished · ' + (live.length - done) + ' upcoming'],
+    ['Hall income', rupees(income), 'Rent after discount for these events'],
+    ['Still to receive', rupees(due), 'Rent not yet paid'],
+    ['Received for these events', rupees(received), 'Advances and balance payments'],
+    ['Advances', rupees(advances), 'Paid when booking'],
+    ['Balance payments', rupees(received - advances), 'Paid after booking'],
+    ['Held for later events', rupees(held), 'In hand on ' + fmtDate(heldOn) + '; refundable if cancelled'],
+    ['Expenses', rupees(outgo), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
+    ['Other income', rupees(other), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
+    ['Net', money(net), 'Received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
+    ['Bookings taken', String(taken.length), 'Bookings made in this period'],
+    ['Cancelled events', String(gone.length), gone.length ? 'Not counted in any figure' : ''],
+  ]);
+  R.note('Events and their rent are counted by the date of the event. Expenses and other income by the date they were entered. ' +
+    'The refundable security deposit is not income and is left out. Discounts given: ' + rupees(sumOf(live, b => b.discountGiven)) + '.');
+
+
   const cashIn = payments.filter(x => inP(x.date)).sort((a, c) => a.date.localeCompare(c.date));
   const cashOf = kind => sumOf(cashIn.filter(x => x.kind.indexOf(kind) === 0), x => x.amount);
   const cashNet = sumOf(cashIn, x => x.amount) + other - outgo;
