@@ -849,6 +849,10 @@ function buildReport(p) {
   const led = ledger.filter(e => inP(e.date)).sort((a, b) => a.date.localeCompare(b.date));
   const spent = led.filter(e => e.type !== 'income'), earned = led.filter(e => e.type === 'income');
   const income = sumOf(live, b => b.net), received = sumOf(live, b => b.received), due = sumOf(live, b => b.due);
+  // The part of the rent paid as advance; anything more that came in was paid later as balance
+  const advances = sumOf(live, b => Math.min(num(b.advance), b.net));
+  // Everything paid so far for events still to come, which goes back if one is cancelled
+  const held = sumOf(live.filter(b => !b.finished), b => num(b.advance) + num(b.balpaid));
   const outgo = sumOf(spent, e => num(e.amount)), other = sumOf(earned, e => num(e.amount));
   const net = received + other - outgo;
   const done = live.filter(b => b.finished).length;
@@ -859,8 +863,11 @@ function buildReport(p) {
   R.tiles([
     ['Events', String(live.length), done + ' finished · ' + (live.length - done) + ' upcoming'],
     ['Hall income', rupees(income), 'Rent after discount for these events'],
-    ['Received for these events', rupees(received), 'Advance and balance payments'],
     ['Still to receive', rupees(due), 'Rent not yet paid'],
+    ['Received for these events', rupees(received), 'Advances and balance payments'],
+    ['Advances', rupees(advances), 'Paid when booking'],
+    ['Balance payments', rupees(received - advances), 'Paid after booking'],
+    ['Held for upcoming events', rupees(held), 'Paid in advance; refundable if cancelled'],
     ['Expenses', rupees(outgo), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
     ['Other income', rupees(other), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
     ['Net', money(net), 'Received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
