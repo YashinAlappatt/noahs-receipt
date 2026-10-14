@@ -58,6 +58,12 @@
   .card { padding: 16px; margin-top: 14px; min-width: 0; }
   .card h2 { margin: 0; font-size: 16px; font-weight: 600; }
   .card .note { margin: 2px 0 10px; font-size: 12px; color: var(--ink2); }
+  .report { margin: 0 0 14px; }
+  .rrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .rrow input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+  .rrow input[hidden], .rrow select[hidden] { display: none; }
+  #rNote { margin: 8px 0 0; }
+  button:disabled { opacity: .5; cursor: default; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .two .card { margin-top: 14px; }
   @media (max-width: 760px) { .two { grid-template-columns: 1fr; gap: 0; } }
@@ -126,6 +132,24 @@
     <span class="spacer"></span>
     <span class="status" id="status"></span>
     <button id="refresh">Refresh</button>
+  </div>
+
+  <div class="card report">
+    <h2>PDF report</h2>
+    <p class="note">A report for a month, for dates you choose, or for all time. It covers every event and expense in that period,
+      whatever is selected above.</p>
+    <div class="rrow">
+      <select id="rKind" aria-label="Report period">
+        <option value="month">A month</option>
+        <option value="range">Dates I choose</option>
+        <option value="all">All time</option>
+      </select>
+      <select id="rMonth" aria-label="Month"></select>
+      <input id="rFrom" type="date" aria-label="From" hidden>
+      <input id="rTo" type="date" aria-label="To" hidden>
+      <button id="rMake">Download PDF</button>
+    </div>
+    <p class="note" id="rNote"></p>
   </div>
 
   <div id="empty" class="card empty" hidden></div>
@@ -527,6 +551,7 @@ function renderTable(list) {
 }
 
 function render() {
+  fillReportMonths();
   const years = Array.from(new Set(all.map(b => b.date.slice(0, 4)))).sort();
   $('year').innerHTML = '<option value="all">All years</option>' + years.map(y => '<option' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('');
   document.querySelectorAll('[data-view]').forEach(b => { b.className = b.dataset.view === view ? 'on' : ''; });
@@ -653,6 +678,334 @@ async function refresh() {
   }
   $('status').textContent = "Could not reach the shared list. Showing this device's copy.";
 }
+
+// ---- PDF report -------------------------------------------------------------------------------
+// A report covers one month, a range of dates, or all time. Events count by their event date,
+// expenses and other income by their own date, and bookings taken by the day they were made.
+// The pages are drawn as pictures and put into a PDF here, so phones need no print window.
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+  'November', 'December'];
+const PW = 794, PH = 1123, PM = 48, CW = PW - 2 * PM;
+const R_SERIF = "Georgia, 'Times New Roman', serif", R_SANS = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const R_GREEN = '#1f3d2b', R_GOLD = '#b08d57', R_INK = '#26302a', R_MUTED = '#6f776f', R_LINE = '#e2dccb', R_TINT = '#f6f3ea';
+
+function fillReportMonths() {
+  const now = new Date();
+  const current = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const keys = new Set([current]);
+  all.forEach(b => keys.add(b.date.slice(0, 7)));
+  ledger.forEach(e => keys.add(e.date.slice(0, 7)));
+  const chosen = $('rMonth').value || current;
+  $('rMonth').innerHTML = Array.from(keys).sort().reverse().map(k => '<option value="' + k + '"' + (k === chosen ? ' selected' : '') +
+    '>' + MONTHS_LONG[+k.slice(5) - 1] + ' ' + k.slice(0, 4) + '</option>').join('');
+}
+function showReportFields() {
+  const kind = $('rKind').value;
+  $('rMonth').hidden = kind !== 'month';
+  $('rFrom').hidden = $('rTo').hidden = kind !== 'range';
+}
+function reportPeriod() {
+  const kind = $('rKind').value;
+  if (kind === 'month') {
+    const m = $('rMonth').value, last = new Date(+m.slice(0, 4), +m.slice(5), 0).getDate();
+    return { from: m + '-01', to: m + '-' + String(last).padStart(2, '0'), label: MONTHS_LONG[+m.slice(5) - 1] + ' ' + m.slice(0, 4) };
+  }
+  if (kind === 'range') {
+    const from = $('rFrom').value, to = $('rTo').value;
+    if (!from || !to) return { error: 'Choose both dates.' };
+    if (from > to) return { error: 'The first date is after the second.' };
+    return { from: from, to: to, label: fmtDate(from) + ' to ' + fmtDate(to) };
+  }
+  // All time starts at the earliest event, entry, or day a booking was taken
+  const dates = all.map(b => b.date).concat(all.map(b => b.booked).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d || '')))
+    .concat(ledger.map(e => e.date)).sort();
+  if (!dates.length) return { error: 'There is nothing recorded yet.' };
+  return { from: dates[0], to: dates[dates.length - 1], label: 'All time', sub: fmtDate(dates[0]) + ' to ' + fmtDate(dates[dates.length - 1]) };
+}
+
+const rMeasure = document.createElement('canvas').getContext('2d');
+function fit(str, size, width, bold) {
+  rMeasure.font = (bold ? '600 ' : '') + size + 'px ' + R_SANS;
+  str = String(str);
+  if (rMeasure.measureText(str).width <= width) return str;
+  while (str.length > 1 && rMeasure.measureText(str + '…').width > width) str = str.slice(0, -1);
+  return str.trim() + '…';
+}
+function wrapText(str, size, width) {
+  rMeasure.font = size + 'px ' + R_SANS;
+  const lines = [];
+  let line = '';
+  String(str).split(/\s+/).filter(Boolean).forEach(w => {
+    const next = line ? line + ' ' + w : w;
+    if (line && rMeasure.measureText(next).width > width) { lines.push(line); line = w; } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+function rText(x, y, str, o) {
+  o = o || {};
+  return '<text x="' + x + '" y="' + y + '" font-family="' + (o.serif ? R_SERIF : R_SANS) + '" font-size="' + (o.size || 11) +
+    '" fill="' + (o.fill || R_INK) + '"' + (o.anchor ? ' text-anchor="' + o.anchor + '"' : '') +
+    (o.bold ? ' font-weight="600"' : '') + (o.spacing ? ' letter-spacing="' + o.spacing + '"' : '') +
+    (o.italic ? ' font-style="italic"' : '') + '>' + esc(str) + '</text>';
+}
+
+// Places blocks down the page and starts a new page when the next block would not fit
+function Layout(period) {
+  this.period = period;
+  this.pages = [[]];
+  this.y = 196;
+}
+Layout.prototype.add = function (svg) { this.pages[this.pages.length - 1].push(svg); };
+Layout.prototype.need = function (h) {
+  if (this.y + h > PH - 64) { this.pages.push([]); this.y = 84; return true; }
+  return false;
+};
+Layout.prototype.section = function (title) {
+  this.need(70);
+  this.y += 18;
+  this.add(rText(PM, this.y + 16, title, { serif: true, size: 17, fill: R_GREEN }));
+  this.add('<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="' + (this.y + 26) + '" y2="' + (this.y + 26) + '" stroke="' + R_GOLD + '" stroke-width="0.75"/>');
+  this.y += 38;
+};
+Layout.prototype.note = function (str) {
+  wrapText(str, 10, CW).forEach(line => {
+    this.need(15);
+    this.add(rText(PM, this.y + 11, line, { size: 10, fill: R_MUTED }));
+    this.y += 15;
+  });
+  this.y += 4;
+};
+Layout.prototype.tiles = function (list) {
+  const per = 3, gap = 12, w = (CW - gap * (per - 1)) / per, h = 64;
+  for (let i = 0; i < list.length; i += per) {
+    this.need(h + gap);
+    list.slice(i, i + per).forEach((t, k) => {
+      const x = PM + k * (w + gap);
+      this.add('<rect x="' + x + '" y="' + this.y + '" width="' + w + '" height="' + h + '" rx="6" fill="' + R_TINT + '" stroke="' + R_LINE + '"/>');
+      this.add(rText(x + 12, this.y + 18, t[0], { size: 10, fill: R_MUTED }));
+      this.add(rText(x + 12, this.y + 41, t[1], { size: 18, bold: true, fill: t[3] || R_INK }));
+      if (t[2]) this.add(rText(x + 12, this.y + 56, fit(t[2], 9, w - 24), { size: 9, fill: R_MUTED }));
+    });
+    this.y += h + gap;
+  }
+};
+// cols: [title, width, 'r' for right-aligned]; the header repeats at the top of each new page
+Layout.prototype.table = function (cols, rows, totals) {
+  const rowH = 21;
+  const header = () => {
+    let x = PM;
+    cols.forEach(c => {
+      this.add(rText(c[2] ? x + c[1] - 6 : x + 2, this.y + 13, c[0], { size: 10, bold: true, fill: R_MUTED, anchor: c[2] ? 'end' : null }));
+      x += c[1];
+    });
+    this.add('<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="' + (this.y + 19) + '" y2="' + (this.y + 19) + '" stroke="' + R_LINE + '"/>');
+    this.y += rowH;
+  };
+  this.need(rowH * 2);
+  header();
+  const line = (cells, bold) => {
+    if (this.need(rowH)) header();
+    let x = PM;
+    cols.forEach((c, k) => {
+      const str = fit(cells[k] == null ? '' : cells[k], 10.5, c[1] - 10, bold);
+      this.add(rText(c[2] ? x + c[1] - 6 : x + 2, this.y + 14, str, { size: 10.5, bold: bold, anchor: c[2] ? 'end' : null }));
+      x += c[1];
+    });
+    this.add('<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="' + (this.y + rowH - 1) + '" y2="' + (this.y + rowH - 1) + '" stroke="' + R_LINE + '" stroke-width="0.5"/>');
+    this.y += rowH;
+  };
+  rows.forEach(r => line(r, false));
+  if (totals) line(totals, true);
+  this.y += 6;
+};
+Layout.prototype.svgs = function () {
+  const p = this.period, n = this.pages.length, made = fmtDate(todayIso());
+  return this.pages.map((items, i) => {
+    let top = '';
+    if (i === 0) {
+      top = '<rect x="' + PM + '" y="40" width="' + CW + '" height="80" fill="' + R_GREEN + '"/>' +
+        rText(PW / 2, 90, "NOAH'S GREEN SQUARE", { serif: true, size: 26, fill: '#fbf8f1', anchor: 'middle', spacing: 4 }) +
+        rText(PM, 158, 'Report · ' + p.label, { serif: true, size: 21, fill: R_GREEN }) +
+        rText(PM, 178, (p.sub ? p.sub + ' · ' : '') + 'Prepared on ' + made, { size: 10.5, fill: R_MUTED });
+    } else {
+      top = rText(PM, 52, "Noah's Green Square · Report · " + p.label, { size: 10, fill: R_MUTED }) +
+        '<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="62" y2="62" stroke="' + R_LINE + '"/>';
+    }
+    const foot = '<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="' + (PH - 44) + '" y2="' + (PH - 44) + '" stroke="' + R_LINE + '"/>' +
+      rText(PM, PH - 28, "Noah's Green Square · +91 99950 81304", { size: 9.5, fill: R_MUTED }) +
+      rText(PW - PM, PH - 28, 'Page ' + (i + 1) + ' of ' + n, { size: 9.5, fill: R_MUTED, anchor: 'end' });
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + PW + '" height="' + PH + '" viewBox="0 0 ' + PW + ' ' + PH + '">' +
+      '<rect width="' + PW + '" height="' + PH + '" fill="#ffffff"/>' + top + items.join('') + foot + '</svg>';
+  });
+};
+
+function buildReport(p) {
+  const inP = d => !!d && d >= p.from && d <= p.to;
+  const sumOf = (list, f) => list.reduce((a, x) => a + f(x), 0);
+  const events = all.filter(b => inP(b.date)).sort((a, b) => (a.date + (a.from || '')).localeCompare(b.date + (b.from || '')));
+  const live = events.filter(b => b.cancelled !== 'yes'), gone = events.filter(b => b.cancelled === 'yes');
+  const taken = all.filter(b => inP(b.booked));
+  const led = ledger.filter(e => inP(e.date)).sort((a, b) => a.date.localeCompare(b.date));
+  const spent = led.filter(e => e.type !== 'income'), earned = led.filter(e => e.type === 'income');
+  const income = sumOf(live, b => b.net), received = sumOf(live, b => b.received), due = sumOf(live, b => b.due);
+  const outgo = sumOf(spent, e => num(e.amount)), other = sumOf(earned, e => num(e.amount));
+  const net = received + other - outgo;
+  const done = live.filter(b => b.finished).length;
+  const money = n => (n < 0 ? '− ' : '') + rupees(Math.abs(n));
+  const R = new Layout(p);
+
+  R.section('Summary');
+  R.tiles([
+    ['Events', String(live.length), done + ' finished · ' + (live.length - done) + ' upcoming'],
+    ['Hall income', rupees(income), 'Rent after discount for these events'],
+    ['Received for these events', rupees(received), 'Advance and balance payments'],
+    ['Still to receive', rupees(due), 'Rent not yet paid'],
+    ['Expenses', rupees(outgo), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
+    ['Other income', rupees(other), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
+    ['Net', money(net), 'Received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
+    ['Bookings taken', String(taken.length), 'Bookings made in this period'],
+    ['Cancelled events', String(gone.length), gone.length ? 'Not counted in any figure' : ''],
+  ]);
+  R.note('Events and their rent are counted by the date of the event. Expenses and other income by the date they were entered. ' +
+    'The refundable security deposit is not income and is left out. Discounts given: ' + rupees(sumOf(live, b => b.discountGiven)) + '.');
+
+  const months = monthRange([p.from.slice(0, 7), p.to.slice(0, 7)]);
+  if (months.length > 1) {
+    R.section('Month by month');
+    const rows = months.map(m => {
+      const ev = live.filter(b => b.date.slice(0, 7) === m), sp = spent.filter(e => e.date.slice(0, 7) === m),
+        er = earned.filter(e => e.date.slice(0, 7) === m);
+      const rec = sumOf(ev, b => b.received), o = sumOf(er, e => num(e.amount)), x = sumOf(sp, e => num(e.amount));
+      return [monthName(m, true), String(ev.length), rupees(sumOf(ev, b => b.net)), rupees(rec), rupees(x), rupees(o), money(rec + o - x)];
+    });
+    R.table([['Month', 110], ['Events', 60, 'r'], ['Hall income', 110, 'r'], ['Received', 105, 'r'], ['Expenses', 105, 'r'],
+      ['Other income', 100, 'r'], ['Net', 108, 'r']], rows,
+    ['Total', String(live.length), rupees(income), rupees(received), rupees(outgo), rupees(other), money(net)]);
+  }
+
+  R.section('Events');
+  if (live.length) {
+    R.table([['Date', 80], ['Name', 170], ['Event', 140], ['Rent', 90, 'r'], ['Received', 80, 'r'], ['To receive', 70, 'r'], ['Security', 68]],
+      live.map(b => [fmtDate(b.date), b.name || '', b.event || '', rupees(b.net), rupees(b.received), b.due ? rupees(b.due) : '–',
+        !num(b.deposit) ? '–' : b.secrefunded === 'yes' ? 'Refunded' : b.securityHeld ? 'Held' : 'To collect']),
+      ['', 'Total', '', rupees(income), rupees(received), rupees(due), '']);
+
+    const byProg = group(live, 'programme');
+    R.section('By programme');
+    R.table([['Programme', 300], ['Events', 100, 'r'], ['Hall income', 150, 'r'], ['Received', 148, 'r']],
+      Object.keys(byProg).sort((a, b) => byProg[b].length - byProg[a].length || a.localeCompare(b))
+        .map(k => [k, String(byProg[k].length), rupees(sumOf(byProg[k], b => b.net)), rupees(sumOf(byProg[k], b => b.received))]));
+  } else {
+    R.note('No events in this period.');
+  }
+
+  R.section('Expenses and other income');
+  if (led.length) {
+    const byCat = {};
+    spent.forEach(e => { const c = e.category || 'Other expense'; (byCat[c] = byCat[c] || []).push(e); });
+    if (spent.length) {
+      R.table([['Expense category', 400], ['Entries', 100, 'r'], ['Amount', 198, 'r']],
+        Object.keys(byCat).sort((a, b) => sumOf(byCat[b], e => num(e.amount)) - sumOf(byCat[a], e => num(e.amount)))
+          .map(c => [c, String(byCat[c].length), rupees(sumOf(byCat[c], e => num(e.amount)))]),
+        ['Total expenses', String(spent.length), rupees(outgo)]);
+    }
+    const ids = {};
+    all.forEach(b => { ids[b.id] = b; });
+    R.section('All entries');
+    R.table([['Date', 80], ['Category', 220], ['Details', 268], ['Amount', 130, 'r']],
+      led.map(e => [fmtDate(e.date), (e.type === 'income' ? 'Income · ' : '') + (e.category || ''),
+        [ids[e.eventId] ? 'For ' + (ids[e.eventId].name || '') + ', ' + fmtDate(ids[e.eventId].date) : '', e.note].filter(Boolean).join(' · '),
+        (e.type === 'income' ? '+ ' : '') + rupees(num(e.amount))]));
+  } else {
+    R.note('No expenses or other income entered for this period.');
+  }
+
+  if (gone.length) {
+    R.section('Cancelled events');
+    R.table([['Date', 80], ['Name', 160], ['Event', 130], ['Reason', 158], ['Received', 90, 'r'], ['Advance', 80]],
+      gone.map(b => {
+        const paid = num(b.advance) + num(b.balpaid);
+        return [fmtDate(b.date), b.name || '', b.event || '', b.cancelreason || '–', rupees(paid),
+          !paid ? '–' : b.keepadvance === 'yes' ? 'Kept' : 'Refunded'];
+      }));
+  }
+  return R.svgs();
+}
+
+function pageJpeg(svg) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = PW * 2;
+      canvas.height = PH * 2;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(async b => b ? resolve(new Uint8Array(await b.arrayBuffer())) : reject(new Error('Could not draw the report')),
+        'image/jpeg', 0.9);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not draw the report')); };
+    img.src = url;
+  });
+}
+
+// A PDF with one A4 page per picture
+async function reportPdf(svgs) {
+  const jpegs = [];
+  for (const svg of svgs) jpegs.push(await pageJpeg(svg));
+  const enc = new TextEncoder(), chunks = [], offsets = [];
+  let length = 0;
+  const add = part => { const b = typeof part === 'string' ? enc.encode(part) : part; chunks.push(b); length += b.length; };
+  const begin = n => { offsets[n - 1] = length; add(n + ' 0 obj\n'); };
+  const pw = 595.28, ph = 841.89;
+  const pageNo = i => 3 + i * 3;
+  add('%PDF-1.4\n');
+  begin(1); add('<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  begin(2); add('<< /Type /Pages /Kids [' + jpegs.map((j, i) => pageNo(i) + ' 0 R').join(' ') + '] /Count ' + jpegs.length + ' >>\nendobj\n');
+  jpegs.forEach((jpeg, i) => {
+    const n = pageNo(i), content = 'q ' + pw + ' 0 0 ' + ph + ' 0 0 cm /Im0 Do Q';
+    begin(n);
+    add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 ' + (n + 1) +
+      ' 0 R >> >> /Contents ' + (n + 2) + ' 0 R >>\nendobj\n');
+    begin(n + 1);
+    add('<< /Type /XObject /Subtype /Image /Width ' + PW * 2 + ' /Height ' + PH * 2 +
+      ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\nstream\n');
+    add(jpeg);
+    add('\nendstream\nendobj\n');
+    begin(n + 2);
+    add('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream\nendobj\n');
+  });
+  const xref = length;
+  add('xref\n0 ' + (offsets.length + 1) + '\n0000000000 65535 f \n' +
+    offsets.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') +
+    'trailer\n<< /Size ' + (offsets.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+async function makeReport() {
+  const p = reportPeriod();
+  if (p.error) { $('rNote').textContent = p.error; return; }
+  $('rMake').disabled = true;
+  $('rNote').textContent = 'Preparing the report…';
+  try {
+    const svgs = buildReport(p);
+    const blob = await reportPdf(svgs);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ("Noah's Green Square report - " + p.label).replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    $('rNote').textContent = 'Report ready: ' + svgs.length + (svgs.length === 1 ? ' page.' : ' pages.');
+  } catch (e) {
+    $('rNote').textContent = e.message;
+  } finally {
+    $('rMake').disabled = false;
+  }
+}
+$('rKind').addEventListener('change', showReportFields);
+$('rMake').addEventListener('click', makeReport);
 
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { view = b.dataset.view; render(); }));
 $('year').addEventListener('change', () => { year = $('year').value; render(); });
