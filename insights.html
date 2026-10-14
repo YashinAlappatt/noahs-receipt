@@ -882,16 +882,17 @@ function buildReport(p) {
     ['Hall income', rupees(income), 'Rent after discount for these events'],
     ['Still to receive', rupees(due), 'Rent not yet paid'],
     ['Received for these events', rupees(received), 'Advances and balance payments'],
-    ['Advances', rupees(advances), 'Paid when booking'],
-    ['Balance payments', rupees(received - advances), 'Paid after booking'],
+    ['Of which advances', rupees(advances), 'Part paid when booking'],
+    ['Of which balance payments', rupees(received - advances), 'Part paid after booking'],
     ['Held for later events', rupees(held), 'In hand on ' + fmtDate(heldOn) + '; refundable if cancelled'],
     ['Expenses', rupees(outgo), spent.length + (spent.length === 1 ? ' entry' : ' entries')],
     ['Other income', rupees(other), earned.length + (earned.length === 1 ? ' entry' : ' entries')],
-    ['Net', money(net), 'Received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
+    ['Net for these events', money(net), 'Their rent received + other income − expenses', net < 0 ? '#9a2c2c' : R_GREEN],
     ['Bookings taken', String(taken.length), 'Bookings made in this period'],
     ['Cancelled events', String(gone.length), gone.length ? 'Not counted in any figure' : ''],
   ]);
-  R.note('Events and their rent are counted by the date of the event. Expenses and other income by the date they were entered. ' +
+  R.note('This summary counts events and their rent by the date of the event, and expenses and other income by their own date. ' +
+    'For the money that actually came in during the period, see Cash flow below. ' +
     'The refundable security deposit is not income and is left out. Discounts given: ' + rupees(sumOf(live, b => b.discountGiven)) + '.');
 
 
@@ -905,14 +906,15 @@ function buildReport(p) {
     rupees(outgo), money(cashNet)]]);
   const cashMonths = monthRange([p.from.slice(0, 7), p.to.slice(0, 7)]);
   if (cashMonths.length > 1) {
-    R.table([['Month', 118], ['Advances', 116, 'r'], ['Balance payments', 116, 'r'], ['Other income', 116, 'r'], ['Expenses', 116, 'r'],
-      ['Net cash', 116, 'r']],
+    R.table([['Month', 98], ['Advances', 100, 'r'], ['Balance payments', 110, 'r'], ['Kept on cancelling', 110, 'r'],
+      ['Other income', 94, 'r'], ['Expenses', 92, 'r'], ['Net cash', 94, 'r']],
     cashMonths.map(m => {
       const inM = cashIn.filter(x => x.date.slice(0, 7) === m);
-      const a = sumOf(inM.filter(x => x.kind !== 'Balance'), x => x.amount), bl = sumOf(inM.filter(x => x.kind === 'Balance'), x => x.amount);
+      const a = sumOf(inM.filter(x => x.kind === 'Advance'), x => x.amount), bl = sumOf(inM.filter(x => x.kind === 'Balance'), x => x.amount);
+      const k = sumOf(inM.filter(x => x.kind === 'Advance kept (cancelled)'), x => x.amount);
       const o = sumOf(earned.filter(e => e.date.slice(0, 7) === m), e => num(e.amount));
       const x = sumOf(spent.filter(e => e.date.slice(0, 7) === m), e => num(e.amount));
-      return [monthName(m, true), rupees(a), rupees(bl), rupees(o), rupees(x), money(a + bl + o - x)];
+      return [monthName(m, true), rupees(a), rupees(bl), rupees(k), rupees(o), rupees(x), money(a + bl + k + o - x)];
     }));
   }
   if (cashIn.length) {
@@ -921,7 +923,7 @@ function buildReport(p) {
         rupees(x.amount)]));
   }
   R.note('Advances are counted on the day the booking was taken. Balance payments on the day they were received; ' +
-    'those marked * had no date recorded, so the event date is used. Security deposits are left out, as they are returned.');
+    'a payment marked * had no date recorded, so the event date is used. Security deposits are left out, as they are returned.');
 
   const months = monthRange([p.from.slice(0, 7), p.to.slice(0, 7)]);
   if (months.length > 1) {
@@ -941,7 +943,7 @@ function buildReport(p) {
   if (live.length) {
     R.table([['Date', 80], ['Name', 170], ['Event', 140], ['Rent', 90, 'r'], ['Received', 80, 'r'], ['To receive', 70, 'r'], ['Security', 68]],
       live.map(b => [fmtDate(b.date), b.name || '', b.event || '', rupees(b.net), rupees(b.received), b.due ? rupees(b.due) : '–',
-        !num(b.deposit) ? '–' : b.secrefunded === 'yes' ? 'Refunded' : b.securityHeld ? 'Held' : 'To collect']),
+        !num(b.deposit) ? '–' : b.secrefunded === 'yes' ? 'Refunded' : b.securityHeld ? 'Held' : b.finished ? 'Not taken' : 'To collect']),
       ['', 'Total', '', rupees(income), rupees(received), rupees(due), '']);
 
     const byProg = group(live, 'programme');
