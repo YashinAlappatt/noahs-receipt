@@ -762,7 +762,7 @@ Layout.prototype.need = function (h) {
   return false;
 };
 Layout.prototype.section = function (title) {
-  this.need(70);
+  this.need(110);   // room for the heading and the first rows below it, so a heading never ends a page
   this.y += 18;
   this.add(rText(PM, this.y + 16, title, { serif: true, size: 17, fill: R_GREEN }));
   this.add('<line x1="' + PM + '" x2="' + (PW - PM) + '" y1="' + (this.y + 26) + '" y2="' + (this.y + 26) + '" stroke="' + R_GOLD + '" stroke-width="0.75"/>');
@@ -876,6 +876,50 @@ function buildReport(p) {
   ]);
   R.note('Events and their rent are counted by the date of the event. Expenses and other income by the date they were entered. ' +
     'The refundable security deposit is not income and is left out. Discounts given: ' + rupees(sumOf(live, b => b.discountGiven)) + '.');
+
+
+  // Cash flow: each payment on the day it came in. An advance counts on the booking date; a balance
+  // payment on its 'received on' date, or on the event date (marked *) where none was recorded.
+  // Security deposits are left out, as they go back. A cancelled booking's advance counts only if kept.
+  const valid = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+  const payments = [];
+  all.forEach(b => {
+    const paid = num(b.advance) + num(b.balpaid);
+    if (b.cancelled === 'yes') {
+      if (b.keepadvance === 'yes' && paid) payments.push({ b: b, kind: 'Advance kept (cancelled)', amount: paid, date: valid(b.booked) ? b.booked : b.date, assumed: !valid(b.booked) });
+      return;
+    }
+    const adv = Math.min(num(b.advance), b.net), bal = Math.min(paid, b.net) - adv;
+    if (adv) payments.push({ b: b, kind: 'Advance', amount: adv, date: valid(b.booked) ? b.booked : b.date, assumed: !valid(b.booked) });
+    if (bal > 0) payments.push({ b: b, kind: 'Balance', amount: bal, date: valid(b.baldate) ? b.baldate : b.date, assumed: !valid(b.baldate) });
+  });
+  const cashIn = payments.filter(x => inP(x.date)).sort((a, c) => a.date.localeCompare(c.date));
+  const cashOf = kind => sumOf(cashIn.filter(x => x.kind.indexOf(kind) === 0), x => x.amount);
+  const cashNet = sumOf(cashIn, x => x.amount) + other - outgo;
+  R.section('Cash flow: money in and out during this period');
+  R.table([['Advances', 116, 'r'], ['Balance payments', 116, 'r'], ['Kept on cancelling', 116, 'r'], ['Other income', 116, 'r'],
+    ['Expenses', 116, 'r'], ['Net cash', 118, 'r']],
+  [[rupees(cashOf('Advance') - cashOf('Advance kept')), rupees(cashOf('Balance')), rupees(cashOf('Advance kept')), rupees(other),
+    rupees(outgo), money(cashNet)]]);
+  const cashMonths = monthRange([p.from.slice(0, 7), p.to.slice(0, 7)]);
+  if (cashMonths.length > 1) {
+    R.table([['Month', 118], ['Advances', 116, 'r'], ['Balance payments', 116, 'r'], ['Other income', 116, 'r'], ['Expenses', 116, 'r'],
+      ['Net cash', 116, 'r']],
+    cashMonths.map(m => {
+      const inM = cashIn.filter(x => x.date.slice(0, 7) === m);
+      const a = sumOf(inM.filter(x => x.kind !== 'Balance'), x => x.amount), bl = sumOf(inM.filter(x => x.kind === 'Balance'), x => x.amount);
+      const o = sumOf(earned.filter(e => e.date.slice(0, 7) === m), e => num(e.amount));
+      const x = sumOf(spent.filter(e => e.date.slice(0, 7) === m), e => num(e.amount));
+      return [monthName(m, true), rupees(a), rupees(bl), rupees(o), rupees(x), money(a + bl + o - x)];
+    }));
+  }
+  if (cashIn.length) {
+    R.table([['Received on', 92], ['Name', 170], ['For the event on', 110], ['Payment', 196], ['Amount', 130, 'r']],
+      cashIn.map(x => [fmtDate(x.date) + (x.assumed ? ' *' : ''), x.b.name || '', fmtDate(x.b.date) + ' · ' + (x.b.event || ''), x.kind,
+        rupees(x.amount)]));
+  }
+  R.note('Advances are counted on the day the booking was taken. Balance payments on the day they were received; ' +
+    'those marked * had no date recorded, so the event date is used. Security deposits are left out, as they are returned.');
 
   const months = monthRange([p.from.slice(0, 7), p.to.slice(0, 7)]);
   if (months.length > 1) {
