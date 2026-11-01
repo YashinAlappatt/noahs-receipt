@@ -283,6 +283,14 @@ function programme(event) {
 
 // Money per booking. Hall income is rent after discount; anything paid beyond that is the
 // refundable security deposit, which is held until it is ticked as refunded.
+// An event is over once its end time has passed; without an end time, once its day has passed
+function eventOver(b) {
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  return !!b.date && (b.date < today || (b.date === today && !!b.to && b.to <= clock));
+}
+
 function enrich(b) {
   const rent = num(b.rent), discount = Math.min(num(b.discount), rent), deposit = num(b.deposit);
   const net = rent - discount, paid = num(b.advance) + num(b.balpaid);
@@ -293,7 +301,7 @@ function enrich(b) {
     received: Math.min(paid, net),
     due: Math.max(net - paid, 0),
     securityHeld: b.secrefunded === 'yes' ? 0 : depositIn,
-    finished: b.date < todayIso(),
+    finished: eventOver(b),
     month: b.date.slice(0, 7),
     bookedMonth: /^\d{4}-\d{2}-\d{2}$/.test(b.booked || '') ? b.booked.slice(0, 7) : '',
     programme: programme(b.event || ''),

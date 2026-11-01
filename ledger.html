@@ -374,15 +374,23 @@ function renderRegular() {
   }
 }
 
+// An event is over once its end time has passed; without an end time, once its day has passed
+function eventOver(b) {
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  return !!b.date && (b.date < today || (b.date === today && !!b.to && b.to <= clock));
+}
+
 // Finished events still missing a per-event cost, each with one-tap buttons
 function renderPending() {
   const hiddenRow = readList(LEDGER_KEY).find(e => e.id === HIDDEN_ID);
   const hidden = hiddenRow && hiddenRow.note ? hiddenRow.note.split(',') : [];
-  const entries = expenseEntries(), today = isoToday();
+  const entries = expenseEntries();
   const perEvent = PRESETS.filter(p => p.perEvent);
   const has = (b, p) => entries.some(e => e.eventId === b.id && e.category === p.category);
   const events = readList(BOOKINGS_KEY)
-    .filter(b => b.date && b.date < today && b.cancelled !== 'yes' && hidden.indexOf(b.id) < 0 && perEvent.some(p => !has(b, p)))
+    .filter(b => eventOver(b) && b.cancelled !== 'yes' && hidden.indexOf(b.id) < 0 && perEvent.some(p => !has(b, p)))
     .sort((a, b) => a.date.localeCompare(b.date));
   const box = $('pending');
   box.textContent = '';

@@ -792,18 +792,23 @@ function unsavedChanges() {
   return !!b && FORM_IDS.some(id => getField(id) !== (b[id] != null ? String(b[id]) : ''));
 }
 
+// An event is over once its end time has passed; without an end time, once its day has passed
+function eventOver(b) {
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  return !!b.date && (b.date < today || (b.date === today && !!b.to && b.to <= clock));
+}
+
 function renderSaved() {
-  // Upcoming: today onwards (and anything undated). Finished: before today. Both earliest first.
+  // Finished: the event is over. Upcoming: everything else, including undated. Both earliest first.
   // A cancelled event leaves both and is listed under Cancelled.
   const all = loadBookings();
-  const now = new Date();
-  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' +
-    String(now.getDate()).padStart(2, '0');
   const order = b => (b.date || '9999') + ' ' + (b.from || '');
   const byDate = (a, b) => order(a).localeCompare(order(b));
   const live = all.filter(b => b.cancelled !== 'yes');
-  const upcoming = live.filter(b => !b.date || b.date >= today).sort(byDate);
-  const finished = live.filter(b => b.date && b.date < today).sort(byDate);
+  const upcoming = live.filter(b => !eventOver(b)).sort(byDate);
+  const finished = live.filter(eventOver).sort(byDate);
   const cancelled = all.filter(b => b.cancelled === 'yes').sort(byDate);
   const list = savedView === 'finished' ? finished : savedView === 'cancelled' ? cancelled : upcoming;
   const ul = $('savedList');
@@ -825,7 +830,7 @@ function renderSaved() {
           ? (b.keepadvance === 'yes' ? ' · Advance kept' : ' · Advance refunded') : '')
         : balance > 0 ? 'Balance ' + rupees(balance) : 'Paid in full',
       !(parseFloat(b.deposit) > 0) ? '' : b.secrefunded === 'yes' ? 'Security refunded'
-        : b.cancelled !== 'yes' && b.date && b.date < today ? 'Security not refunded' : '',
+        : b.cancelled !== 'yes' && eventOver(b) ? 'Security not refunded' : '',
       syncUrl() && !b.synced ? 'not shared yet' : ''].filter(Boolean).join(' · ');
     who.appendChild(small);
     const btns = document.createElement('div');
@@ -840,7 +845,7 @@ function renderSaved() {
     del.addEventListener('click', () => deleteBooking(b));
     btns.append(open);
     // A thank-you card for events that have taken place
-    if (b.cancelled !== 'yes' && b.date && b.date < today) {
+    if (b.cancelled !== 'yes' && eventOver(b)) {
       const card = document.createElement('a');
       card.className = 'cardlink';
       card.textContent = 'Card';
