@@ -143,8 +143,10 @@ function eventKind(event) {
   if (/housewarming|house warming|griha ?pravesh|gruha ?pravesh|paalu ?kaachal|palu ?kachal/.test(t)) return 'home';
   if (/baptism|communion|christening/.test(t)) return 'blessed';
   if (/birthday/.test(t)) return 'birthday';
-  // Madhuram Vepp, the pre-wedding sweet ceremony, is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu
-  if (/engagement|wedding|marriage|reception|betrothal|madhuram|mathuram/.test(t)) return 'couple';
+  // Madhuram Vepp, the pre-wedding sweet ceremony, is held for the bride or the groom at their own home,
+  // not for the two together. It is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu
+  if (/madhuram|mathuram/.test(t)) return 'premarriage';
+  if (/engagement|wedding|marriage|reception|betrothal/.test(t)) return 'couple';
   if (/90th day|naming|cradle|child/.test(t)) return 'child';
   if (/meeting|conference|seminar|training|class/.test(t)) return 'meeting';
   if (/onam|christmas|new year|celebration|party|together|reunion|festival/.test(t)) return 'celebration';
@@ -155,6 +157,7 @@ const PERSONAL_LINE = {
   birthday: 'It was a joy to be part of such a happy occasion.',
   couple: 'We wish the couple every happiness in the life ahead of them.',
   anniversary: 'We wish the couple many more happy years together.',
+  premarriage: 'We wish the family great joy as they prepare for the wedding, and every happiness in the married life ahead.',
   home: 'We wish the family every happiness in the new home.',
   child: 'We wish the little one a life full of blessings.',
   meeting: 'We hope the hall served the gathering well.',
