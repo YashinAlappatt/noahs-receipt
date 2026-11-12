@@ -144,8 +144,9 @@ function eventKind(event) {
   if (/baptism|communion|christening/.test(t)) return 'blessed';
   if (/birthday/.test(t)) return 'birthday';
   // Madhuram Vepp, the pre-wedding sweet ceremony, is held for the bride or the groom at their own home,
-  // not for the two together. It is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu
-  if (/madhuram|mathuram/.test(t)) return 'premarriage';
+  // not for the two together. It is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu.
+  // Athazhoottu, the dinner on the eve of the wedding, is the same kind of occasion (athazhoott, athazha oottu, ...).
+  if (/madhuram|mathuram|at+h?a+zh?a? ?o+t/.test(t)) return 'premarriage';
   if (/engagement|wedding|marriage|reception|betrothal/.test(t)) return 'couple';
   if (/90th day|naming|cradle|child/.test(t)) return 'child';
   if (/meeting|conference|seminar|training|class/.test(t)) return 'meeting';
