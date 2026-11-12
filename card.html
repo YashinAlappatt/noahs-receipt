@@ -141,7 +141,8 @@ function eventKind(event) {
   if (/demise|death|funeral|memorial|remembrance|7th day|41st day/.test(t)) return /anniversary|remembrance/.test(t) ? 'remembrance' : 'memorial';
   if (/baptism|communion|christening/.test(t)) return 'blessed';
   if (/birthday/.test(t)) return 'birthday';
-  if (/engagement|wedding|marriage|reception|betrothal/.test(t)) return 'couple';
+  // Madhuram Vepp, the pre-wedding sweet ceremony, is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu
+  if (/engagement|wedding|marriage|reception|betrothal|madhuram|mathuram/.test(t)) return 'couple';
   if (/90th day|naming|cradle|child/.test(t)) return 'child';
   if (/meeting|conference|seminar|training|class/.test(t)) return 'meeting';
   if (/onam|christmas|celebration|party|together|reunion|festival/.test(t)) return 'celebration';
