@@ -70,6 +70,9 @@
   }
   input[type=checkbox] { width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--green); }
   .check label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--ink); }
+  #eventPick { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: inherit; background: #fff; }
+  #event { margin-top: 8px; }
+  #event[hidden] { display: none; }
   input:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
   .balance {
     margin-top: 14px;
@@ -175,11 +178,27 @@
       <div class="full"><label for="name">Name</label><input id="name" autocomplete="off"></div>
       <div><label for="place">Place</label><input id="place" autocomplete="off"></div>
       <div><label for="phone">Phone No.</label><input id="phone" inputmode="tel" autocomplete="off"></div>
-      <div class="full"><label for="event">Event</label><input id="event" list="events" autocomplete="off">
-        <datalist id="events">
-          <option>Birthday</option><option>Wedding Reception</option><option>Engagement</option>
-          <option>Baptism</option><option>Housewarming</option><option>Meeting</option>
-        </datalist>
+      <div class="full"><label for="eventPick">Event</label>
+        <select id="eventPick">
+          <option value="">Choose the event</option>
+          <option>Baptism</option>
+          <option>1st Holy Communion</option>
+          <option>Birthday</option>
+          <option>Engagement</option>
+          <option>Madhuram Vepp</option>
+          <option>Wedding</option>
+          <option>Wedding Reception</option>
+          <option>Wedding Anniversary</option>
+          <option>Child&#39;s 90th Day</option>
+          <option>Housewarming</option>
+          <option>Onam Celebration</option>
+          <option>Christmas Celebration</option>
+          <option>Meeting</option>
+          <option>7th Day of Demise</option>
+          <option>Death Anniversary</option>
+          <option value="other">Other (type it)</option>
+        </select>
+        <input id="event" autocomplete="off" placeholder="Type the event" hidden>
       </div>
       <div class="full"><label for="date">Date</label><input id="date" type="date"></div>
       <div class="full"><label for="booked">Booking taken on</label><input id="booked" type="date"></div>
@@ -875,8 +894,16 @@ function renderSaved() {
   showClash();
 }
 
+// The dropdown shows the event when it is one of the usual ones; anything else is typed in the box
+function syncEventPick() {
+  const v = $('event').value.trim(), known = [...$('eventPick').options].some(o => o.value && o.value !== 'other' && o.value === v);
+  $('eventPick').value = !v ? '' : known ? v : 'other';
+  $('event').hidden = !v || known;
+}
+
 function openBooking(b) {
   FORM_IDS.forEach(id => { setField(id, b[id] != null ? b[id] : ''); });
+  syncEventPick();
   currentId = b.id;
   render();
   renderSaved();
@@ -981,6 +1008,7 @@ $('copyText').addEventListener('click', async () => {
 
 $('reset').addEventListener('click', () => {
   FORM_IDS.forEach(id => { setField(id, id === 'deposit' ? '1000' : id === 'booked' ? isoToday() : ''); });
+  syncEventPick();
   currentId = null;
   render();
   renderSaved();
@@ -1045,6 +1073,18 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
   if (LINK_URL) $('syncUrl').value = LINK_URL;
   qrData = load(QR_KEY) || DEFAULT_QR;
   setField('booked', isoToday());
+  $('eventPick').addEventListener('change', () => {
+    const pick = $('eventPick').value;
+    if (pick === 'other') {
+      if ([...$('eventPick').options].some(o => o.value === $('event').value)) $('event').value = '';
+      $('event').hidden = false;
+      $('event').focus();
+    } else {
+      $('event').value = pick;
+      $('event').hidden = true;
+    }
+    $('event').dispatchEvent(new Event('input', { bubbles: true }));
+  });
   if (navigator.canShare) $('share').hidden = false;
   render();
   renderSaved();

@@ -139,6 +139,8 @@ function longDate(iso) {
 function eventKind(event) {
   const t = event.toLowerCase();
   if (/demise|death|funeral|memorial|remembrance|7th day|41st day/.test(t)) return /anniversary|remembrance/.test(t) ? 'remembrance' : 'memorial';
+  if (/(wedding|marriage) anniversary/.test(t)) return 'anniversary';
+  if (/housewarming|house warming|griha ?pravesh|gruha ?pravesh|paalu ?kaachal|palu ?kachal/.test(t)) return 'home';
   if (/baptism|communion|christening/.test(t)) return 'blessed';
   if (/birthday/.test(t)) return 'birthday';
   // Madhuram Vepp, the pre-wedding sweet ceremony, is spelled many ways: madhuram/mathuram vepp, veppu, vaipu, vaypu
@@ -152,6 +154,8 @@ const PERSONAL_LINE = {
   blessed: 'It was a pleasure to host you and your family on such a blessed day.',
   birthday: 'It was a joy to be part of such a happy occasion.',
   couple: 'We wish the couple every happiness in the life ahead of them.',
+  anniversary: 'We wish the couple many more happy years together.',
+  home: 'We wish the family every happiness in the new home.',
   child: 'We wish the little one a life full of blessings.',
   meeting: 'We hope the hall served the gathering well.',
   celebration: 'We were glad to be part of it.',
